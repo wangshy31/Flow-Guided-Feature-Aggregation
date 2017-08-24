@@ -2,7 +2,7 @@
 MXNET_VERSION: ""
 output_path: "./output/fgfa_rfcn/imagenet_vid"
 symbol: resnet_v1_101_flownet_rfcn
-gpus: '4,5,6,7'
+gpus: '0,1,2,3'
 CLASS_AGNOSTIC: true
 SCALES:
 - 600
@@ -49,7 +49,8 @@ dataset:
   NUM_CLASSES: 31
   dataset: ImageNetVID
   dataset_path: "./data/ILSVRC2015"
-  image_set: DET_train_30classes+VID_train_15frames
+  #image_set: DET_train_30classes+VID_train_15frames
+  image_set: DET_VID_list
   root_path: "./data"
   test_image_set: VID_val_videos
   proposal: rpn
@@ -65,9 +66,9 @@ TRAIN:
   # whether resume training
   RESUME: false
   # whether flip image
-  FLIP: true
+  FLIP: false
   # whether shuffle image
-  SHUFFLE: true
+  SHUFFLE: false
   # whether use OHEM
   ENABLE_OHEM: true
   # size of images for each device, 1 for e2e

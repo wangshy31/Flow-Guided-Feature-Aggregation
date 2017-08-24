@@ -200,7 +200,14 @@ class AnchorLoader(mx.io.DataIter):
 
     @property
     def provide_data(self):
-        return [[(k, v.shape) for k, v in zip(self.data_name, self.data[i])] for i in xrange(len(self.data))]
+        #tmp1 = [[(k, v.shape) for k, v in zip(self.data_name, self.data[i])] for i in xrange(len(self.data))]
+        #print 'tmp1!!!!'
+        #print tmp1
+        tmp = []
+        for i in xrange(len(self.data)):
+            tmp.append([(k, v.shape) for k, v in zip(self.data_name, self.data[i])])
+        return tmp
+
 
     @property
     def provide_label(self):
@@ -347,6 +354,7 @@ class AnchorLoader(mx.io.DataIter):
         for idx, islice in enumerate(slices):
             iroidb = [roidb[i] for i in range(islice.start, islice.stop)]
             rst.append(self.parfetch(iroidb))
+
         all_data = [_['data'] for _ in rst]
         all_label = [_['label'] for _ in rst]
         self.data = [[mx.nd.array(data[key]) for key in self.data_name] for data in all_data]

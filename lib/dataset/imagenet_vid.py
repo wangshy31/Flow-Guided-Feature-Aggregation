@@ -73,29 +73,45 @@ class ImageNetVID(IMDB):
         assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
         with open(image_set_index_file) as f:
             lines = [x.strip().split(' ') for x in f.readlines()]
-        if len(lines[0]) == 2:
-            self.image_set_index = [x[0] for x in lines]
-            self.frame_id = [int(x[1]) for x in lines]
-        else:
-            self.image_set_index = ['%s/%06d' % (x[0], int(x[2])) for x in lines]
-            self.pattern = [x[0]+'/%06d' for x in lines]
-            self.frame_id = [int(x[1]) for x in lines]
-            self.frame_seg_id = [int(x[2]) for x in lines]
-            self.frame_seg_len = [int(x[3]) for x in lines]
+        for x in lines:
+            if len(x)==2:
+                self.image_set_index.append(x[0])
+                self.pattern.append('')
+                self.frame_id.append(x[1])
+                self.frame_seg_id.append('')
+                self.frame_seg_len.append('')
+            else:
+                self.image_set_index.append('%s/%06d' % (x[0], int(x[2])))
+                self.pattern.append(x[0]+'/%06d')
+                self.frame_id.append(int(x[1]))
+                self.frame_seg_id.append(int(x[2]))
+                self.frame_seg_len.append(int(x[3]))
+
+#        if len(lines[0]) == 2:
+#            self.image_set_index = [x[0] for x in lines]
+#            self.frame_id = [int(x[1]) for x in lines]
+#        else:
+#            print lines[0]
+#            self.image_set_index = ['%s/%06d' % (x[0], int(x[2])) for x in lines]
+#            self.pattern = [x[0]+'/%06d' for x in lines]
+#            self.frame_id = [int(x[1]) for x in lines]
+#            self.frame_seg_id = [int(x[2]) for x in lines]
+#            self.frame_seg_len = [int(x[3]) for x in lines]
         # return image_set_index, frame_id
 
-    def image_path_from_index(self, index):
+    def image_path_from_index(self, iindex, index):
         """
         given image index, find out full path
         :param index: index of a specific image
         :return: full path of this image
         """
-        if self.det_vid == 'DET':
+       # if self.det_vid == 'DET':
+        if self.pattern[iindex] == '':
             image_file = os.path.join(self.data_path, 'Data', 'DET', index + '.JPEG')
         else:
             image_file = os.path.join(self.data_path, 'Data', 'VID', index + '.JPEG')
 
-        # assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
+        #assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
         return image_file
 
     def gt_roidb(self):
@@ -107,7 +123,7 @@ class ImageNetVID(IMDB):
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as fid:
                 roidb = cPickle.load(fid)
-            print '{} gt roidb loaded from {}'.format(self.name, cache_file)
+            #print '{} gt roidb loaded from {}'.format(self.name, cache_file)
             return roidb
 
         gt_roidb = [self.load_vid_annotation(index) for index in range(0, len(self.image_set_index))]
@@ -127,14 +143,22 @@ class ImageNetVID(IMDB):
 
         import xml.etree.ElementTree as ET
         roi_rec = dict()
-        roi_rec['image'] = self.image_path_from_index(index)
+        roi_rec['image'] = self.image_path_from_index(iindex, index)
         roi_rec['frame_id'] = self.frame_id[iindex]
-        if hasattr(self,'frame_seg_id'):
-            roi_rec['pattern'] = self.image_path_from_index(self.pattern[iindex])
+        #if hasattr(self,'frame_seg_id'):
+        #if r(self,'frame_seg_id'):
+        if self.pattern[iindex] != '':
+            roi_rec['pattern'] = self.image_path_from_index(iindex, self.pattern[iindex])
             roi_rec['frame_seg_id'] = self.frame_seg_id[iindex]
             roi_rec['frame_seg_len'] = self.frame_seg_len[iindex]
+        else:
+            roi_rec['pattern'] = ''
+            roi_rec['frame_seg_id'] = ''
+            roi_rec['frame_seg_len'] = ''
 
-        if self.det_vid == 'DET':
+
+        #if self.det_vid == 'DET':
+        if self.pattern[iindex] == '':
             filename = os.path.join(self.data_path, 'Annotations', 'DET', index + '.xml')
         else:
             filename = os.path.join(self.data_path, 'Annotations', 'VID', index + '.xml')
@@ -357,7 +381,7 @@ class ImageNetVID(IMDB):
                             f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
                                     format(frame_ids[im_ind], cls_ind, dets[k, -1],
                                            dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3]))
-    
+
     def do_python_eval(self):
         """
         python evaluation wrapper
@@ -393,7 +417,7 @@ class ImageNetVID(IMDB):
             for i in range(len(self.pattern)):
                 for j in range(self.frame_seg_len[i]):
                     f.write((self.pattern[i] % (self.frame_seg_id[i] + j)) + ' ' + str(self.frame_id[i] + j) + '\n')
-                    
+
         if gpu_number != None:
             filenames = []
             for i in range(gpu_number):

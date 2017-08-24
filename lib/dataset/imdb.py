@@ -37,6 +37,10 @@ class IMDB(object):
         self.classes = []
         self.num_classes = 0
         self.image_set_index = []
+        self.pattern = []
+        self.frame_id = []
+        self.frame_seg_id = []
+        self.frame_seg_len = []
         self.num_images = 0
 
         self.config = {}
