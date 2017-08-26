@@ -341,7 +341,15 @@ class AnchorLoader(mx.io.DataIter):
     def get_batch_individual(self):
         cur_from = self.cur
         cur_to = min(cur_from + self.batch_size, self.size)
-        roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]
+
+        assert cur_from % len(self.ctx) == 0, "cur_from mod len(ctx) must equal to 0"
+        range_list = []
+        tmplen = self.size / len(self.ctx)
+        for i in range(len(self.ctx)):
+            range_list.append(i*tmplen + cur_from / len(self.ctx))
+
+        #roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]
+        roidb = [self.roidb[self.index[i]] for i in range_list]
         # decide multi device slice
         work_load_list = self.work_load_list
         ctx = self.ctx
