@@ -99,13 +99,15 @@ def get_triple_image(roidb, config):
     preprocess image and return processed roidb
     :param roidb: a list of roidb
     :return: list of img as in mxnet format
-    roidb add new item['im_info']
+    roidb add new item['im_info'], ['filename']
     0 --- x (width, second dim of im)
     |
     y (height, first dim of im)
     """
     num_images = len(roidb)
     processed_ims = []
+    processed_filename_pre = []
+    processed_filename = []
     processed_bef_ims = []
     processed_aft_ims = []
     processed_roidb = []
@@ -118,13 +120,13 @@ def get_triple_image(roidb, config):
         if roi_rec['pattern'] != '':
             # get two different frames from the interval [frame_id + MIN_OFFSET, frame_id + MAX_OFFSET]
             offsets = np.random.choice(config.TRAIN.MAX_OFFSET - config.TRAIN.MIN_OFFSET + 1, 2, replace=False) + config.TRAIN.MIN_OFFSET
-            bef_id = min(max(roi_rec['frame_seg_id'] + offsets[0], 0), roi_rec['frame_seg_len']-1)
+            bef_id = min(max(roi_rec['frame_seg_id'] -1, 0), roi_rec['frame_seg_len']-1)
             aft_id = min(max(roi_rec['frame_seg_id'] + offsets[1], 0), roi_rec['frame_seg_len']-1)
             bef_image = roi_rec['pattern'] % bef_id
             aft_image = roi_rec['pattern'] % aft_id
 
             assert os.path.exists(bef_image), '%s does not exist'.format(bef_image)
-            assert os.path.exists(aft_image), '%s does not exist'.format(aft_image)
+            #assert os.path.exists(aft_image), '%s does not exist'.format(aft_image)
             bef_im = cv2.imread(bef_image, cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
             aft_im = cv2.imread(aft_image, cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
         else:
@@ -148,13 +150,16 @@ def get_triple_image(roidb, config):
         bef_im_tensor = transform(bef_im, config.network.PIXEL_MEANS)
         aft_im_tensor = transform(aft_im, config.network.PIXEL_MEANS)
         processed_ims.append(im_tensor)
+        processed_filename_pre.append(int(roi_rec['image'].split('/')[-2].split('_')[-1].replace('n','')))
+        processed_filename.append(int(roi_rec['image'].split('/')[-1].split('.')[0].split('_')[-1]))
         processed_bef_ims.append(bef_im_tensor)
         processed_aft_ims.append(aft_im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
         new_rec['boxes'] = roi_rec['boxes'].copy() * im_scale
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
-    return processed_ims, processed_bef_ims, processed_aft_ims, processed_roidb
+    #return processed_ims, processed_bef_ims, processed_aft_ims, processed_roidb
+    return processed_ims, processed_filename_pre, processed_filename, processed_bef_ims, processed_aft_ims, processed_roidb
 
 def resize(im, target_size, max_size, stride=0, interpolation = cv2.INTER_LINEAR):
     """

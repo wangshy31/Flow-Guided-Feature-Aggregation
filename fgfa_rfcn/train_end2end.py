@@ -56,6 +56,7 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
     # load symbol
     shutil.copy2(os.path.join(curr_path, 'symbols', config.symbol + '.py'), final_output_path)
     sym_instance = eval(config.symbol + '.' + config.symbol)()
+    print 'sym_instance!!!', config.symbol + '.' + config.symbol
     #sym = sym_instance.get_train_symbol(config)
     sym = sym_instance.get_memory_symbol(config)
     feat_sym = sym.get_internals()['rpn_cls_score_output']
@@ -84,15 +85,21 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
 
     # infer max shape
     max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
-                      ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
-                      ('data_aft', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
+                      ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
+                      #('data_aft', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     max_data_shape.append(('gt_boxes', (config.TRAIN.BATCH_IMAGES, 100, 5)))
+    #max_data_shape.append(('filename_pre', (config.TRAIN.BATCH_IMAGES)))
+    #max_data_shape.append(('filename', (config.TRAIN.BATCH_IMAGES)))
     print 'providing maximum shape', max_data_shape, max_label_shape
 
     data_shape_dict = dict(train_data.provide_data_single + train_data.provide_label_single)
-    #print 'dic!!!'
-    #print(data_shape_dict)
+    #tmp_filename_pre =  data_shape_dict['filename_pre']
+    #tmp_filename =  data_shape_dict['filename']
+
+    #del data_shape_dict['filename_pre']
+    #del data_shape_dict['filename']
+    #print 'data_shape_dict: ', data_shape_dict
     sym_instance.infer_shape(data_shape_dict)
 
     # load and initialize params
@@ -108,6 +115,8 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
         sym_instance.init_weight(config, arg_params, aux_params)
 
     # check parameter shapes
+    #data_shape_dict['filename_pre'] = tmp_filename_pre
+    #data_shape_dict['filename'] = tmp_filename
     sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict)
 
     # create solver

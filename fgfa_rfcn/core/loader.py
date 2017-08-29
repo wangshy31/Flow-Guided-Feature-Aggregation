@@ -183,7 +183,8 @@ class AnchorLoader(mx.io.DataIter):
 
         # decide data and label names
         if config.TRAIN.END2END:
-            self.data_name = ['data', 'data_bef', 'data_aft', 'im_info', 'gt_boxes']
+            #self.data_name = ['data', 'filename_pre', 'filename', 'data_bef', 'data_aft', 'im_info', 'gt_boxes']
+            self.data_name = ['data', 'data_bef', 'im_info', 'gt_boxes']
         else:
             self.data_name = ['data']
         self.label_name = ['label', 'bbox_target', 'bbox_weight']
@@ -373,6 +374,8 @@ class AnchorLoader(mx.io.DataIter):
         data, label = get_rpn_triple_batch(iroidb, self.cfg)
         data_shape = {k: v.shape for k, v in data.items()}
         del data_shape['im_info']
+        del data_shape['filename']
+        del data_shape['filename_pre']
         _, feat_shape, _ = self.feat_sym.infer_shape(**data_shape)
         feat_shape = [int(i) for i in feat_shape[0]]
 

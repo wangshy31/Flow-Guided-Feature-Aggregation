@@ -27,6 +27,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.workspace = 512
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
+        self.pre_filename_pre = 0
+        self.pre_filename = 0
+        self.filename_pre = 0
+        self.filename = 0
+        self.mem_block5 = None
+
 
     def get_resnet_v1(self, data):
         conv1 = mx.symbol.Convolution(name='conv1', data=data, num_filter=64, pad=(3, 3), kernel=(7, 7), stride=(2, 2),
@@ -741,7 +747,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
 
         return feat_conv_3x3_relu
-    def get_memory_resnet_v1(self, data, flow_data, mem_block2, mem_block3, mem_block4, mem_block5):
+    def get_memory_resnet_v1(self, data, flow_data):
+        #decide wether to clear memory unit
+
         conv1 = mx.symbol.Convolution(name='conv1', data=data, num_filter=64, pad=(3, 3), kernel=(7, 7), stride=(2, 2),
                                       no_bias=True)
         bn_conv1 = mx.symbol.BatchNorm(name='bn_conv1', data=conv1, use_global_stats=self.use_global_stats,
@@ -775,42 +783,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res2a = mx.symbol.broadcast_add(name='res2a', *[scale2a_branch1, scale2a_branch2c])
         res2a_relu = mx.symbol.Activation(name='res2a_relu', data=res2a, act_type='relu')
 
-
-        ####memory_block2####
-        #gen_mem_block2
-        #stream1: from upper data
-        mem_block2_data = mx.symbol.Convolution(name='mem_block2_data', data=pool1, num_filter=256, pad=(1, 1),
-                                              kernel=(3, 3), stride=(1, 1), no_bias=True)
-        mem_block2_data_bn = mx.symbol.BatchNorm(name='mem_block2_data_bn', data=mem_block2_data,
-                                           use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
-        mem_block2_data_scale = mem_block2_data_bn
-        #stream2: from t-1
-        block2_flow = mx.sym.Upsampling(flow_data, res2a_relu.shape[2]/flow_data.shape[2])
-        block2_flow = mx.sym.broadcast_mul(block2_flow, mx.symbol.tile(data=[res2a_relu.shape[2]/flow_data.shape[2]],
-                                                                       reps=(block2_flow.shape[0], block2_flow.shape[1],
-                                                                             block2_flow.shape[2],block2_flow.shape[3])))
-        mem_block2_flow_grid = mx.sym.GridGenerator(data=block2_flow, transform_type='warp', name='mem_block2_flow_grid')
-        mem_block2_warp = mx.sym.BilinearSampler(data=mem_block2, grid=mem_block2_flow_grid, name='mem_block2_warp')
-        #concat
-        mem_block2_concat = mx.symbol.Concat(mem_block2_data_scale, mem_block2_warp, dim=1)
-        mem_block2_tmp = mx.symbol.Convolution(name='mem_block2_tmp', data=mem_block2_concat, num_filter=256, pad=(1, 1),
-                                              kernel=(3, 3), stride=(1, 1), no_bias=True)
-        mem_block2_tmp_bn = mx.symbol.BatchNorm(name='mem_block2_tmp_bn', data=mem_block2_tmp_data,
-                                           use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
-        mem_block2 = mem_block2_tmp_bn
-
-        #mem_block2 aggregation
-        block2_weight = self.compute_weight(res2a_relu, mem_block2)
-        block2_weight_self = self.compute_weight(mem_block2, mem_block2)
-        unnormalize_weights = mx.symbol.Concat(block2_weight, block2_weight_self, dim=0)
-        weights = mx.symbol.softmax(data=unnormalize_weights, axis=0)
-        weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=2)
-        weight1 = mx.symbol.tile(data=weights[0], reps=(1, 256, 1, 1))
-        weight2 = mx.symbol.tile(data=weights[1], reps=(1, 256, 1, 1))
-        block2_aft_mem = weight1 * res2a_relu + weight2 * mem_block2
-        ####memory_block2####
-
-        res2b_branch2a = mx.symbol.Convolution(name='res2b_branch2a', data=block2_aft_mem, num_filter=64, pad=(0, 0),
+        res2b_branch2a = mx.symbol.Convolution(name='res2b_branch2a', data=res2a_relu, num_filter=64, pad=(0, 0),
                                                kernel=(1, 1), stride=(1, 1), no_bias=True)
         bn2b_branch2a = mx.symbol.BatchNorm(name='bn2b_branch2a', data=res2b_branch2a,
                                             use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
@@ -1484,9 +1457,59 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res5c = mx.symbol.broadcast_add(name='res5c', *[res5b_relu, scale5c_branch2c])
         res5c_relu = mx.symbol.Activation(name='res5c_relu', data=res5c, act_type='relu')
 
+        ####memory_block5####
+        #gen_mem_block5
+        #stream1: from upper data
+        if (self.pre_filename_pre==0 and self.pre_filename==0)\
+                or (self.filename_pre == self.pre_filename_pre and self.filename == self.pre_filename+1):
+            self.mem_block5 = mx.symbol.zeros_like(res5c_relu)
+        mem_block5_data = mx.symbol.Convolution(name='mem_block5_data', data=res4b22_relu, num_filter=2048, pad=(1, 1),
+                                              kernel=(3, 3), stride=(1, 1))
+        mem_block5_data_relu = mx.symbol.Activation(name='mem_block5_data_relu', data=mem_block5_data, act_type='relu')
+        #stream5: from t-1
+        mem_block5_t = mx.symbol.Convolution(name='mem_block5_t', data=self.mem_block5, num_filter=2048, pad=(1, 1),
+                                              kernel=(3, 3), stride=(1, 1), no_bias=True)
+        mem_block5_t_relu = mx.symbol.Activation(name='mem_block5_t_relu', data=mem_block5_t, act_type='relu')
+        #block5_flow = mx.sym.Upsampling(flow_data, res2a_relu.shape[2]/flow_data.shape[2])
+        #block5_flow = mx.sym.broadcast_mul(block2_flow, mx.symbol.tile(data=[res2a_relu.shape[2]/flow_data.shape[2]],
+                                                                       #reps=(block2_flow.shape[0], block2_flow.shape[1],
+                                                                             #block2_flow.shape[2],block2_flow.shape[3])))
+        mem_block5_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_block5_flow_grid')
+        mem_block5_warp = mx.sym.BilinearSampler(data=mem_block5_t_relu, grid=mem_block5_flow_grid, name='mem_block5_warp')
+        #concat
+        mem_block5_concat = mx.symbol.Concat(mem_block5_data_relu, mem_block5_warp, dim=1)
+        mem_block5_tmp = mx.symbol.Convolution(name='mem_block5_tmp', data=mem_block5_concat, num_filter=2048, pad=(1, 1),
+                                              kernel=(3, 3), stride=(1, 1))
+        mem_block5_tmp_relu = mx.symbol.Activation(name='mem_block5_tmp_relu', data=mem_block5_tmp, act_type='relu')
+        #mem_blok5_tmp_bn = mx.symbol.BatchNorm(name='mem_block5_tmp_bn', data=mem_block5_tmp,
+                                           #use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=True)
+        mem_block5 = mem_block5_tmp_relu
+        self.mem_block5 = mem_block5
+
+        #mem_block5 aggregation
+        concat_embed_data = mx.symbol.Concat(*[res5c_relu, mem_block5], dim=0)
+        embed_output = self.get_embednet(concat_embed_data)
+        embed_output = mx.sym.SliceChannel(embed_output, axis=0, num_outputs=2)
+        block5_weight = self.compute_weight(embed_output[0], embed_output[1])
+        block5_weight_self = self.compute_weight(embed_output[1], embed_output[1])
+        unnormalize_weights = mx.symbol.Concat(block5_weight, block5_weight_self, dim=0)
+        weights = mx.symbol.softmax(data=unnormalize_weights, axis=0)
+        weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=2)
+        weight1 = mx.symbol.tile(data=weights[0], reps=(1, 2048, 1, 1))
+        weight2 = mx.symbol.tile(data=weights[1], reps=(1, 2048, 1, 1))
+        block5_aft_mem = weight1 * res5c_relu + weight2 * mem_block5
+
+        self.pre_filename_pre = self.filename_pre
+        self.pre_filename = self.filename
+        ####memory_block5####
+
+
+
         feat_conv_3x3 = mx.sym.Convolution(
-            data=res5c_relu, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
+            data=block5_aft_mem, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
+
+
         return feat_conv_3x3_relu
 
     def get_embednet(self, data):
@@ -1617,6 +1640,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
+        self.filename_pre = mx.sym.Variable(name="filename_pre")
+        self.filename = mx.sym.Variable(name="filename")
         data_bef = mx.sym.Variable(name="data_bef")
         data_aft = mx.sym.Variable(name="data_aft")
         im_info = mx.sym.Variable(name="im_info")
@@ -1911,6 +1936,17 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
 
+        arg_params['mem_block5_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_data_weight'])
+        arg_params['mem_block5_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_data_bias'])
+        #arg_params['mem_block5_data_bn_gamma'] = mx.nd.ones(shape=self.arg_shape_dict['mem_block5_data_bn_gamma'])
+        #arg_params['mem_block5_data_bn_beta'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_data_bn_beta'])
+
+        arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
+        arg_params['mem_block5_tmp_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_tmp_bias'])
+        #arg_params['mem_block5_tmp_bn_gamma'] = mx.nd.ones(shape=self.arg_shape_dict['mem_block5_tmp_bn_gamma'])
+        #arg_params['mem_block5_tmp_bn_beta'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_tmp_bn_beta'])
+        arg_params['mem_block5_t_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_t_weight'])
+
         arg_params['em_conv1_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv1_weight']),
                                                          shape=self.arg_shape_dict['em_conv1_weight'])
         arg_params['em_conv1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv1_bias'])
@@ -1935,60 +1971,30 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
     def get_memory_symbol(self, cfg):
         # config alias for convenient
+        print 'enter memory_symbol!!!!'
         num_classes = cfg.dataset.NUM_CLASSES
         num_reg_classes = (2 if cfg.CLASS_AGNOSTIC else num_classes)
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
+        self.filename_pre = mx.sym.Variable(name="filename_pre")
+        self.filename = mx.sym.Variable(name="filename")
         data_bef = mx.sym.Variable(name="data_bef")
-        data_aft = mx.sym.Variable(name="data_aft")
+        #data_aft = mx.sym.Variable(name="data_aft")
         im_info = mx.sym.Variable(name="im_info")
         gt_boxes = mx.sym.Variable(name="gt_boxes")
         rpn_label = mx.sym.Variable(name='label')
         rpn_bbox_target = mx.sym.Variable(name='bbox_target')
         rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
 
-        # pass through ResNet
-        concat_data = mx.symbol.Concat(*[data, data_bef, data_aft], dim=0)
-        conv_feat = self.get_resnet_v1(concat_data)
 
         # pass through FlowNet
-        concat_flow_data_1 = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
-        concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
-        concat_flow_data = mx.symbol.Concat(concat_flow_data_1, concat_flow_data_2, dim=0)
+        concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
+        # pass through ResNet
+        conv_feat = self.get_memory_resnet_v1(data,flow)
 
-        flow = mx.sym.SliceChannel(flow, axis=0, num_outputs=2)
-        #arg_shapes, out_shapes, aux_shapes = flow.infer_shape(data=(1,3, 600,900), data_bef = (1,3,600,900), data_aft=(1,3,600,900))
-        #print 'arg_shapes!!!!', out_shapes
-        conv_feat = mx.sym.SliceChannel(conv_feat, axis=0, num_outputs=3)
-        #arg_shapes, out_shapes, aux_shapes = conv_feat.infer_shape(data=(1,3, 600,900), data_bef = (1,3,600,900), data_aft=(1,3,600,900))
-        #print 'arg_shapes!!!!', out_shapes
-
-        # warping
-        flow_grid_1 = mx.sym.GridGenerator(data=flow[0], transform_type='warp', name='flow_grid_1')
-        flow_grid_2 = mx.sym.GridGenerator(data=flow[1], transform_type='warp', name='flow_grid_2')
-        warp_conv_feat_1 = mx.sym.BilinearSampler(data=conv_feat[1], grid=flow_grid_1, name='warping_feat_1')
-        warp_conv_feat_2 = mx.sym.BilinearSampler(data=conv_feat[2], grid=flow_grid_2, name='warping_feat_2')
-
-        # pass through EmbedNet
-        concat_embed_data = mx.symbol.Concat(*[conv_feat[0], warp_conv_feat_1, warp_conv_feat_2], dim=0)
-        embed_output = self.get_embednet(concat_embed_data)
-        embed_output = mx.sym.SliceChannel(embed_output, axis=0, num_outputs=3)
-
-        unnormalize_weight1 = self.compute_weight(embed_output[1], embed_output[0])
-        unnormalize_weight2 = self.compute_weight(embed_output[2], embed_output[0])
-        unnormalize_weights = mx.symbol.Concat(unnormalize_weight1, unnormalize_weight2, dim=0)
-
-        weights = mx.symbol.softmax(data=unnormalize_weights, axis=0)
-        weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=2)
-
-        # tile the channel dim of weights
-        weight1 = mx.symbol.tile(data=weights[0], reps=(1, 1024, 1, 1))
-        weight2 = mx.symbol.tile(data=weights[1], reps=(1, 1024, 1, 1))
-        select_conv_feat = weight1 * warp_conv_feat_1 + weight2 * warp_conv_feat_2
-
-        conv_feats = mx.sym.SliceChannel(select_conv_feat, axis=1, num_outputs=2)
+        conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
 
         # RPN layers
         rpn_feat = conv_feats[0]
