@@ -27,11 +27,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.workspace = 512
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
-        self.pre_filename_pre = 0
-        self.pre_filename = 0
-        self.filename_pre = 0
-        self.filename = 0
-        self.mem_block5 = None
+        self.pre_filename_pre = mx.symbol.zeros(shape=(1))
+        self.pre_filename = mx.symbol.zeros(shape=(1))
+        self.max_mem_block5 = mx.symbol.zeros(shape=(1,2048,68,68))
 
 
     def get_resnet_v1(self, data):
@@ -747,7 +745,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
 
         return feat_conv_3x3_relu
-    def get_memory_resnet_v1(self, data, flow_data):
+    def get_memory_resnet_v1_bottom(self, data):
         #decide wether to clear memory unit
 
         conv1 = mx.symbol.Convolution(name='conv1', data=data, num_filter=64, pad=(3, 3), kernel=(7, 7), stride=(2, 2),
@@ -1456,18 +1454,19 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         scale5c_branch2c = bn5c_branch2c
         res5c = mx.symbol.broadcast_add(name='res5c', *[res5b_relu, scale5c_branch2c])
         res5c_relu = mx.symbol.Activation(name='res5c_relu', data=res5c, act_type='relu')
+        return res4b22_relu, res5c_relu
 
+    def get_memory_resnet_v1_top(self, res4b22_relu, res5c_relu, flow_data, filename, filename_pre, mem_block5):
         ####memory_block5####
         #gen_mem_block5
         #stream1: from upper data
-        if (self.pre_filename_pre==0 and self.pre_filename==0)\
-                or (self.filename_pre == self.pre_filename_pre and self.filename == self.pre_filename+1):
-            self.mem_block5 = mx.symbol.zeros_like(res5c_relu)
+        condition = filename_pre.__eq__(self.pre_filename_pre) + filename.__eq__(self.pre_filename+1)
+        m5 = mx.symbol.where(condition=condition.__eq__(2), x = mem_block5, y = mx.symbol.zeros_like(res5c_relu), name='m5')
         mem_block5_data = mx.symbol.Convolution(name='mem_block5_data', data=res4b22_relu, num_filter=2048, pad=(1, 1),
                                               kernel=(3, 3), stride=(1, 1))
         mem_block5_data_relu = mx.symbol.Activation(name='mem_block5_data_relu', data=mem_block5_data, act_type='relu')
         #stream5: from t-1
-        mem_block5_t = mx.symbol.Convolution(name='mem_block5_t', data=self.mem_block5, num_filter=2048, pad=(1, 1),
+        mem_block5_t = mx.symbol.Convolution(name='mem_block5_t', data=m5, num_filter=2048, pad=(1, 1),
                                               kernel=(3, 3), stride=(1, 1), no_bias=True)
         mem_block5_t_relu = mx.symbol.Activation(name='mem_block5_t_relu', data=mem_block5_t, act_type='relu')
         #block5_flow = mx.sym.Upsampling(flow_data, res2a_relu.shape[2]/flow_data.shape[2])
@@ -1483,11 +1482,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_block5_tmp_relu = mx.symbol.Activation(name='mem_block5_tmp_relu', data=mem_block5_tmp, act_type='relu')
         #mem_blok5_tmp_bn = mx.symbol.BatchNorm(name='mem_block5_tmp_bn', data=mem_block5_tmp,
                                            #use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=True)
-        mem_block5 = mem_block5_tmp_relu
-        self.mem_block5 = mem_block5
+        #mem_block5 = mem_block5_tmp_relu
+        #self.mem_block5 = mem_block5_tmp_relu
 
         #mem_block5 aggregation
-        concat_embed_data = mx.symbol.Concat(*[res5c_relu, mem_block5], dim=0)
+        concat_embed_data = mx.symbol.Concat(*[res5c_relu, mem_block5_tmp_relu], dim=0)
         embed_output = self.get_embednet(concat_embed_data)
         embed_output = mx.sym.SliceChannel(embed_output, axis=0, num_outputs=2)
         block5_weight = self.compute_weight(embed_output[0], embed_output[1])
@@ -1497,10 +1496,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=2)
         weight1 = mx.symbol.tile(data=weights[0], reps=(1, 2048, 1, 1))
         weight2 = mx.symbol.tile(data=weights[1], reps=(1, 2048, 1, 1))
-        block5_aft_mem = weight1 * res5c_relu + weight2 * mem_block5
+        block5_aft_mem = weight1 * res5c_relu + weight2 * mem_block5_tmp_relu
 
-        self.pre_filename_pre = self.filename_pre
-        self.pre_filename = self.filename
+        self.pre_filename_pre = filename_pre
+        self.pre_filename = filename
+        #self.mem_block5 = mem_block5
         ####memory_block5####
 
 
@@ -1510,7 +1510,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
 
 
-        return feat_conv_3x3_relu
+        return feat_conv_3x3_relu, mem_block5
 
     def get_embednet(self, data):
         em_conv1 = mx.symbol.Convolution(name='em_conv1', data=data, num_filter=512, pad=(0, 0),
@@ -1805,16 +1805,22 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_classes = cfg.dataset.NUM_CLASSES
 
         data = mx.sym.Variable(name="data")
+        data_bef = mx.sym.Variable(name="data_bef")
         im_info = mx.sym.Variable(name="im_info")
-        data_cache = mx.sym.Variable(name="data_cache")
-        feat_cache = mx.sym.Variable(name="feat_cache")
+        self.filename_pre = mx.sym.Variable(name="filename_pre")
+        self.filename = mx.sym.Variable(name="filename")
+        #data_cache = mx.sym.Variable(name="data_cache")
+        #feat_cache = mx.sym.Variable(name="feat_cache")
 
         # shared convolutional layers
-        conv_feat = self.get_resnet_v1(data)
-        embed_feat = self.get_embednet(conv_feat)
-        conv_embed = mx.sym.Concat(conv_feat, embed_feat, name="conv_embed")
+        #conv_feat = self.get_memory_resnet_v1(self, data)
+        concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
+        flow = self.get_flownet(concat_flow_data)
+        conv_feat = self.get_memory_resnet_v1(data,flow)
+        #embed_feat = self.get_embednet(conv_feat)
+        #conv_embed = mx.sym.Concat(conv_feat, embed_feat, name="conv_embed")
 
-        group = mx.sym.Group([conv_embed, im_info, data_cache, feat_cache])
+        group = mx.sym.Group([conv_feat, im_info])
         self.sym = group
         return group
 
@@ -1933,6 +1939,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         return group
 
     def init_weight(self, cfg, arg_params, aux_params):
+
+        #arg_params['pre_filename_pre'] = mx.nd.zeros(shape=self.arg_shape_dict['pre_filename_pre'])
+        #arg_params['pre_filename'] = mx.nd.zeros(shape=self.arg_shape_dict['pre_filename_pre'])
+        #arg_params['mem_block5'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5'])
+
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
 
@@ -1977,8 +1988,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
-        self.filename_pre = mx.sym.Variable(name="filename_pre")
-        self.filename = mx.sym.Variable(name="filename")
+        #self.filename_pre = mx.sym.Variable(name="filename_pre")
+        #self.filename = mx.sym.Variable(name="filename")
         data_bef = mx.sym.Variable(name="data_bef")
         #data_aft = mx.sym.Variable(name="data_aft")
         im_info = mx.sym.Variable(name="im_info")
@@ -1987,12 +1998,20 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         rpn_bbox_target = mx.sym.Variable(name='bbox_target')
         rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
 
+        #self.pre_filename_pre = mx.symbol.Variable('pre_filename_pre')
+        #self.pre_filename = mx.symbol.Variable('pre_filename')
+        filename_pre = mx.symbol.Variable(name ="filename_pre")
+        filename = mx.symbol.Variable(name ="filename")
+        #self.mem_block5 = mx.symbol.Variable('mem_block5')
 
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
         # pass through ResNet
-        conv_feat = self.get_memory_resnet_v1(data,flow)
+        res4b22_relu, res5c_relu = self.get_memory_resnet_v1_bottom(data)
+        mem_block5 = mx.symbol.Crop(self.max_mem_block5, res5c_relu, name='mem_block5')
+        conv_feat, tmp = self.get_memory_resnet_v1_top(res4b22_relu, res5c_relu, flow, filename, filename_pre, mem_block5)
+        self.max_mem_block5 = tmp
 
         conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
 

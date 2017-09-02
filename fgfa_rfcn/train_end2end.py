@@ -75,7 +75,7 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
                             flip=config.TRAIN.FLIP)
               for image_set in image_sets]
     roidb = merge_roidb(roidbs)
-    #roidb = filter_roidb(roidb, config)
+    roidb = filter_roidb(roidb, config)
     # load training data
     train_data = AnchorLoader(feat_sym, roidb, config, batch_size=input_batch_size, shuffle=config.TRAIN.SHUFFLE, ctx=ctx,
                               feat_stride=config.network.RPN_FEAT_STRIDE, anchor_scales=config.network.ANCHOR_SCALES,
@@ -85,9 +85,14 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
 
     # infer max shape
     max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
-                      ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
+                      ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
+                      ('filename', (config.TRAIN.BATCH_IMAGES,)),
+                      ('filename_pre', (config.TRAIN.BATCH_IMAGES,))]
+                      #('filename_pre', (config.TRAIN.BATCH_IMAGES)),
+                      #('pre_filename_pre', (config.TRAIN.BATCH_IMAGES))]
                       #('data_aft', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
+    print max_data_shape
     max_data_shape.append(('gt_boxes', (config.TRAIN.BATCH_IMAGES, 100, 5)))
     #max_data_shape.append(('filename_pre', (config.TRAIN.BATCH_IMAGES)))
     #max_data_shape.append(('filename', (config.TRAIN.BATCH_IMAGES)))

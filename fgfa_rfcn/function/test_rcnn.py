@@ -23,6 +23,8 @@ from utils.load_model import load_param
 def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx):
     # infer shape
     data_shape_dict = dict(test_data.provide_data_single)
+    del data_shape_dict['filename_pre']
+    del data_shape_dict['filename']
     sym_instance.infer_shape(data_shape_dict)
     sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict, is_train=False)
 
@@ -30,9 +32,10 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     data_names = [k[0] for k in test_data.provide_data_single]
     label_names = None
     max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
-                       ('data_cache', (19, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
+                       ('data_bef', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ]]
 
+    print data_names
     # create predictor
     predictor = Predictor(sym, data_names, label_names,
                           context=ctx, max_data_shapes=max_data_shape,
@@ -53,13 +56,17 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
     # load symbol and testing data
 
     feat_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
-    aggr_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
+    print 'feat_sym_instance!!!', cfg.symbol + '.' + cfg.symbol
+    #aggr_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
+    #print 'aggr_sym_instance!!!', cfg.symbol + '.' + cfg.symbol
 
     feat_sym = feat_sym_instance.get_feat_symbol(cfg)
-    aggr_sym = aggr_sym_instance.get_aggregation_symbol(cfg)
+    #aggr_sym = aggr_sym_instance.get_aggregation_symbol(cfg)
 
     imdb = eval(dataset)(image_set, root_path, dataset_path, motion_iou_path, result_path=output_path, enable_detailed_eval=enable_detailed_eval)
+    print 'imdb!!', dataset, image_set, root_path, dataset_path, motion_iou_path
     roidb = imdb.gt_roidb()
+    print 'roidb!!!', len(roidb)
 
     # get test data iter
     # split roidbs
@@ -70,6 +77,7 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
         gpu_id = np.argmin(roidbs_seg_lens)
         roidbs[gpu_id].append(x)
         roidbs_seg_lens[gpu_id] += x['frame_seg_len']
+    print len(roidbs[0]), len(roidbs[1]), len(roidbs[2]), len(roidbs[3])
 
     # get test data iter
     test_datas = [TestLoader(x, cfg, batch_size=1, shuffle=shuffle, has_rpn=has_rpn) for x in roidbs]
@@ -79,7 +87,8 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
 
     # create predictor
     feat_predictors = [get_predictor(feat_sym, feat_sym_instance, cfg, arg_params, aux_params, test_datas[i], [ctx[i]]) for i in range(gpu_num)]
-    aggr_predictors = [get_predictor(aggr_sym, aggr_sym_instance, cfg, arg_params, aux_params, test_datas[i], [ctx[i]]) for i in range(gpu_num)]
+    #aggr_predictors = [get_predictor(aggr_sym, aggr_sym_instance, cfg, arg_params, aux_params, test_datas[i], [ctx[i]]) for i in range(gpu_num)]
 
     # start detection
-    pred_eval_multiprocess(gpu_num, feat_predictors, aggr_predictors, test_datas, imdb, cfg, vis=vis, ignore_cache=ignore_cache, thresh=thresh, logger=logger)
+    #pred_eval_multiprocess(gpu_num, feat_predictors, aggr_predictors, test_datas, imdb, cfg, vis=vis, ignore_cache=ignore_cache, thresh=thresh, logger=logger)
+    pred_eval_multiprocess(gpu_num, feat_predictors, test_datas, imdb, cfg, vis=vis, ignore_cache=ignore_cache, thresh=thresh, logger=logger)

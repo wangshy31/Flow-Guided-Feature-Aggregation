@@ -32,7 +32,8 @@ class TestLoader(mx.io.DataIter):
         self.index = np.arange(self.size)
 
         # decide data and label names (only for training)
-        self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
+        #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
+        self.data_name = ['data', 'data_bef', 'im_info', 'filename_pre', 'filename']
         self.label_name = None
 
         #
@@ -103,16 +104,23 @@ class TestLoader(mx.io.DataIter):
         cur_roidb = self.roidb[self.cur_roidb_index].copy()
         cur_roidb['image'] = cur_roidb['pattern'] % self.cur_frameid
         self.cur_seg_len = cur_roidb['frame_seg_len']
-        data, label, im_info = get_rpn_testbatch([cur_roidb], self.cfg)
+        cur_roidb_index = []
+        cur_roidb_index.append(self.cur_roidb_index)
+        cur_frameid = []
+        cur_frameid.append(self.cur_frameid)
+        data, label, im_info = get_rpn_testbatch([cur_roidb], self.cfg, cur_roidb_index, cur_frameid)
         if self.cur_frameid == 0: # new video
                 self.key_frame_flag = 0
         else:       # normal frame
             self.key_frame_flag = 2
 
         extend_data = [{'data': data[0]['data'] ,
+                        'data_bef': data[0]['data_bef'],
                         'im_info': data[0]['im_info'],
-                        'data_cache': data[0]['data'],
-                        'feat_cache': data[0]['data']}]
+                        'filename_pre': data[0]['filename_pre'],
+                        'filename': data[0]['filename']}]
+                        #'data_cache': data[0]['data'],
+                        #'feat_cache': data[0]['data']}]
         self.data = [[mx.nd.array(extend_data[i][name]) for name in self.data_name] for i in xrange(len(data))]
         self.im_info = im_info
 
@@ -120,7 +128,11 @@ class TestLoader(mx.io.DataIter):
         cur_roidb = self.roidb[self.cur_roidb_index].copy()
         cur_roidb['image'] = cur_roidb['pattern'] % self.cur_frameid
         self.cur_seg_len = cur_roidb['frame_seg_len']
-        data, label, im_info = get_rpn_testbatch([cur_roidb], self.cfg)
+        cur_roidb_index = []
+        cur_roidb_index.append(self.cur_roidb_index)
+        cur_frameid = []
+        cur_frameid.append(self.cur_frameid)
+        data, label, im_info = get_rpn_testbatch([cur_roidb], self.cfg, cur_roidb_index, cur_frameid)
         if self.cur_frameid == 0: # new frame
                 self.key_frame_flag = 0
         else:       # normal frame
@@ -128,11 +140,14 @@ class TestLoader(mx.io.DataIter):
 
         feat_stride = float(self.cfg.network.RCNN_FEAT_STRIDE)
         extend_data = [{'data': data[0]['data'] ,
+                        'data_bef': data[0]['data_bef'],
                         'im_info': data[0]['im_info'],
-                        'data_cache': np.zeros((19, 3, max([v[0] for v in self.cfg.SCALES]), max([v[1] for v in self.cfg.SCALES]))),
-                        'feat_cache': np.zeros((19, self.cfg.network.FGFA_FEAT_DIM,
-                                                np.ceil(max([v[0] for v in self.cfg.SCALES]) / feat_stride).astype(np.int),
-                                                np.ceil(max([v[1] for v in self.cfg.SCALES]) / feat_stride).astype(np.int)))}]
+                        'filename_pre': data[0]['filename_pre'],
+                        'filename': data[0]['filename']}]
+                        #'data_cache': np.zeros((19, 3, max([v[0] for v in self.cfg.SCALES]), max([v[1] for v in self.cfg.SCALES]))),
+                        #'feat_cache': np.zeros((19, self.cfg.network.FGFA_FEAT_DIM,
+                                                #np.ceil(max([v[0] for v in self.cfg.SCALES]) / feat_stride).astype(np.int),
+                                                #np.ceil(max([v[1] for v in self.cfg.SCALES]) / feat_stride).astype(np.int)))}]
         self.data = [[mx.nd.array(extend_data[i][name]) for name in self.data_name] for i in xrange(len(data))]
         self.im_info = im_info
 
@@ -184,7 +199,7 @@ class AnchorLoader(mx.io.DataIter):
         # decide data and label names
         if config.TRAIN.END2END:
             #self.data_name = ['data', 'filename_pre', 'filename', 'data_bef', 'data_aft', 'im_info', 'gt_boxes']
-            self.data_name = ['data', 'data_bef', 'im_info', 'gt_boxes']
+            self.data_name = ['data', 'data_bef', 'im_info', 'gt_boxes', 'filename', 'filename_pre']
         else:
             self.data_name = ['data']
         self.label_name = ['label', 'bbox_target', 'bbox_weight']
@@ -206,7 +221,11 @@ class AnchorLoader(mx.io.DataIter):
         #print tmp1
         tmp = []
         for i in xrange(len(self.data)):
-            tmp.append([(k, v.shape) for k, v in zip(self.data_name, self.data[i])])
+            tmp2 = []
+            for k, v in zip(self.data_name, self.data[i]):
+                tmp2.append((k, v.shape))
+            tmp.append(tmp2)
+            #tmp.append([(k, v.shape) for k, v in zip(self.data_name, self.data[i])])
         return tmp
 
 
@@ -373,9 +392,11 @@ class AnchorLoader(mx.io.DataIter):
         # get testing data for multigpu
         data, label = get_rpn_triple_batch(iroidb, self.cfg)
         data_shape = {k: v.shape for k, v in data.items()}
+        #data_shape['pre_filename_pre'] = (1,)
+        #data_shape['pre_filename'] = (1,)
         del data_shape['im_info']
-        del data_shape['filename']
-        del data_shape['filename_pre']
+        #del data_shape['filename']
+        #del data_shape['filename_pre']
         _, feat_shape, _ = self.feat_sym.infer_shape(**data_shape)
         feat_shape = [int(i) for i in feat_shape[0]]
 

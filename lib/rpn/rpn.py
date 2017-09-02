@@ -18,18 +18,22 @@ from generate_anchor import generate_anchors
 from bbox.bbox_transform import bbox_overlaps, bbox_transform
 
 
-def get_rpn_testbatch(roidb, cfg):
+def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
     """
     return a dict of testbatch
     :param roidb: ['image', 'flipped']
     :return: data, label, im_info
     """
     # assert len(roidb) == 1, 'Single batch only'
-    imgs, roidb = get_image(roidb, cfg)
+    imgs, bef_imgs, roidb = get_image(roidb, cfg)
     im_array = imgs
+    bef_img_array = bef_imgs
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
 
     data = [{'data': im_array[i],
+            'data_bef': bef_imgs[i],
+            'filename_pre': np.array([cur_roidb_index[i]]),
+            'filename': np.array([cur_frameid[i]]),
             'im_info': im_info[i]} for i in range(len(roidb))]
     label = {}
 
