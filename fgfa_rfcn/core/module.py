@@ -15,6 +15,7 @@ import time
 import logging
 import warnings
 
+import mxnet as mx
 from mxnet import context as ctx
 from mxnet.initializer import Uniform, InitDesc
 from mxnet.module.base_module import BaseModule, _check_input_names, _parse_data_desc, _as_list
@@ -959,17 +960,28 @@ class MutableModule(BaseModule):
         ################################################################################
         # training loop
         ################################################################################
+        pre_filename = mx.nd.zeros((4))
+        pre_filename_pre = mx.nd.zeros((4))
         for epoch in range(begin_epoch, num_epoch):
             tic = time.time()
             eval_metric.reset()
             for nbatch, data_batch in enumerate(train_data):
                 if monitor is not None:
                     monitor.tic()
+                print data_batch.data
                 #print 'data_batch', data_batch.data
+                #print 'shape is ', pre_filename.shape[0], data_batch.data[0].shape[0]
+                #assert pre_filename.shape[0] == data_batch.data[0].shape[0] , 'pre_filename.shape[0] == data_batch.data.shape[0]'
+                print 'data_batch!!!', data_batch.data[3][4].asnumpy(), data_batch.data[3][5].asnumpy(),data_batch.data[3][6].asnumpy(), data_batch.data[0][7].asnumpy()
+                for index in range(pre_filename.shape[0]):
+                    data_batch.data[index][6] = pre_filename[index]
+                    data_batch.data[index][7] = pre_filename_pre[index]
+
                 self.forward_backward(data_batch)
-                print 'data_batch!!!', data_batch.data[0][4].asnumpy()
-                print 'data_batch!!!', data_batch.data[0][5].asnumpy()
-                print 'self!!!',self.get_outputs(merge_multi_context = False)[-3][0].asnumpy(), self.get_outputs(merge_multi_context = False)[-2][0].asnumpy(), self.get_outputs(merge_multi_context = False)[-1][0].asnumpy()
+                print 'self!!!',self.get_outputs(merge_multi_context = False)[-3][3].asnumpy(), self.get_outputs(merge_multi_context = False)[-2][3].asnumpy(), self.get_outputs(merge_multi_context = False)[-1][3].asnumpy()
+                for index in range(pre_filename.shape[0]):
+                    pre_filename[index] = data_batch.data[index][4]
+                    pre_filename_pre[index] = data_batch.data[index][5]
                 #print 'output_names: ', self.get_outputs(merge_multi_context = False)[0][0].asnumpy()
                 self.update()
                 self.update_metric(eval_metric, data_batch.label)

@@ -87,9 +87,9 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
     max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
                       ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
                       ('filename', (config.TRAIN.BATCH_IMAGES,)),
-                      ('filename_pre', (config.TRAIN.BATCH_IMAGES,))]
-                      #('filename_pre', (config.TRAIN.BATCH_IMAGES)),
-                      #('pre_filename_pre', (config.TRAIN.BATCH_IMAGES))]
+                      ('filename_pre', (config.TRAIN.BATCH_IMAGES,)),
+                      ('pre_filename', (config.TRAIN.BATCH_IMAGES,)),
+                      ('pre_filename_pre', (config.TRAIN.BATCH_IMAGES,))]
                       #('data_aft', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     print max_data_shape

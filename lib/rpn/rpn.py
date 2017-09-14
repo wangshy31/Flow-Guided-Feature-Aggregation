@@ -124,6 +124,8 @@ def get_rpn_triple_batch(roidb, cfg):
     data = {'data': im_array,
             'filename_pre': np.array(filename_pre),
             'filename': np.array(filename),
+            'pre_filename_pre': np.array(filename_pre),
+            'pre_filename': np.array(filename),
             'data_bef': bef_im_array,
             #'data_aft': aft_im_array,
             'im_info': im_info}

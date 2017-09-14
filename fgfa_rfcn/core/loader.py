@@ -199,7 +199,7 @@ class AnchorLoader(mx.io.DataIter):
         # decide data and label names
         if config.TRAIN.END2END:
             #self.data_name = ['data', 'filename_pre', 'filename', 'data_bef', 'data_aft', 'im_info', 'gt_boxes']
-            self.data_name = ['data', 'data_bef', 'im_info', 'gt_boxes', 'filename', 'filename_pre']
+            self.data_name = ['data', 'data_bef', 'im_info', 'gt_boxes', 'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         else:
             self.data_name = ['data']
         self.label_name = ['label', 'bbox_target', 'bbox_weight']

@@ -27,12 +27,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.workspace = 512
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
-        #self.pre_filename_pre = mx.symbol.zeros(shape=(1))
-        #self.pre_filename = mx.symbol.zeros(shape=(1))
-        self.pre_filename_pre = mx.symbol.Variable(name='pre_filename_pre')
-        self.pre_filename = mx.symbol.Variable(name='pre_filename')
-        self.pre_filename_pre = mx.symbol.zeros(shape=(1))
-        self.pre_filename = mx.symbol.zeros(shape=(1))
         self.max_mem_block2 = mx.symbol.zeros(shape=(1,256,250,250))
         self.max_mem_block3 = mx.symbol.zeros(shape=(1,512,125,125))
         self.max_mem_block4 = mx.symbol.zeros(shape=(1,1024,68,68))
@@ -2108,9 +2102,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
     def init_weight(self, cfg, arg_params, aux_params):
 
-        #arg_params['pre_filename_pre'] = mx.nd.zeros(shape=self.arg_shape_dict['pre_filename_pre'])
-        #arg_params['pre_filename'] = mx.nd.zeros(shape=self.arg_shape_dict['pre_filename_pre'])
-        #arg_params['mem_block5'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5'])
 
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
@@ -2225,8 +2216,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
-        #self.filename_pre = mx.sym.Variable(name="filename_pre")
-        #self.filename = mx.sym.Variable(name="filename")
         data_bef = mx.sym.Variable(name="data_bef")
         #data_aft = mx.sym.Variable(name="data_aft")
         im_info = mx.sym.Variable(name="im_info")
@@ -2235,24 +2224,21 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         rpn_bbox_target = mx.sym.Variable(name='bbox_target')
         rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
 
-        #self.pre_filename_pre = mx.symbol.Variable('pre_filename_pre')
-        #self.pre_filename = mx.symbol.Variable('pre_filename')
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
-        #self.mem_block5 = mx.symbol.Variable('mem_block5')
+        pre_filename_pre = mx.symbol.Variable(name ="pre_filename_pre")
+        pre_filename = mx.symbol.Variable(name ="pre_filename")
 
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
-        condition = filename_pre.__eq__(self.pre_filename_pre) + filename.__eq__(self.pre_filename+1)
+        condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
         # pass through ResNet
         pool1 = self.get_memory_resnet_v1_stage1(data)
         block2_aft_mem, mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, pool1, condition)
         block3_aft_mem, mem_block3_tmp_relu = self.get_memory_resnet_v1_stage3(data, flow, block2_aft_mem, mem_block2_tmp_relu, condition)
         block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(data, flow, block3_aft_mem, mem_block3_tmp_relu, condition)
         conv_feat = self.get_memory_resnet_v1_stage5(data, flow, block4_aft_mem, mem_block4_tmp_relu, condition)
-        self.pre_filename_pre = filename_pre
-        self.pre_filename = filename
         #res4b22_relu, res5c_relu = self.get_memory_resnet_v1_bottom(data)
         #mem_block5 = mx.symbol.Crop(*[self.max_mem_block5, res5c_relu], name='mem_block5')
         #conv_feat, tmp = self.get_memory_resnet_v1_top(res4b22_relu, res5c_relu, flow, filename, filename_pre, mem_block5)
@@ -2368,7 +2354,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         bbox_loss = mx.sym.Reshape(data=bbox_loss, shape=(cfg.TRAIN.BATCH_IMAGES, -1, 4 * num_reg_classes),
                                    name='bbox_loss_reshape')
 
-        group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), condition, self.pre_filename_pre, self.pre_filename])
+        group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), condition, pre_filename, pre_filename_pre])
         self.sym = group
         return group
 
