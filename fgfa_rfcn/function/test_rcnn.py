@@ -23,17 +23,19 @@ from utils.load_model import load_param
 def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx):
     # infer shape
     data_shape_dict = dict(test_data.provide_data_single)
-    del data_shape_dict['filename_pre']
-    del data_shape_dict['filename']
+    #del data_shape_dict['filename_pre']
+    #del data_shape_dict['filename']
     sym_instance.infer_shape(data_shape_dict)
     sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict, is_train=False)
 
     # decide maximum shape
     data_names = [k[0] for k in test_data.provide_data_single]
     label_names = None
-    max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
+    max_data_shape = [('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ('data_bef', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
-                       ]]
+                       ('filename', (config.TRAIN.BATCH_IMAGES,)),
+                       ('filename_pre', (config.TRAIN.BATCH_IMAGES,))
+                       ]
 
     print data_names
     # create predictor

@@ -965,7 +965,12 @@ class MutableModule(BaseModule):
             for nbatch, data_batch in enumerate(train_data):
                 if monitor is not None:
                     monitor.tic()
+                #print 'data_batch', data_batch.data
                 self.forward_backward(data_batch)
+                print 'data_batch!!!', data_batch.data[0][4].asnumpy()
+                print 'data_batch!!!', data_batch.data[0][5].asnumpy()
+                print 'self!!!',self.get_outputs(merge_multi_context = False)[-3][0].asnumpy(), self.get_outputs(merge_multi_context = False)[-2][0].asnumpy(), self.get_outputs(merge_multi_context = False)[-1][0].asnumpy()
+                #print 'output_names: ', self.get_outputs(merge_multi_context = False)[0][0].asnumpy()
                 self.update()
                 self.update_metric(eval_metric, data_batch.label)
 

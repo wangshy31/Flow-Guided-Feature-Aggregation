@@ -366,7 +366,8 @@ class AnchorLoader(mx.io.DataIter):
         range_list = []
         tmplen = self.size / len(self.ctx)
         for i in range(len(self.ctx)):
-            range_list.append(i*tmplen + cur_from / len(self.ctx))
+            tmpindex = (i*tmplen + cur_from / len(self.ctx))%self.size
+            range_list.append(tmpindex)
 
         #roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]
         roidb = [self.roidb[self.index[i]] for i in range_list]

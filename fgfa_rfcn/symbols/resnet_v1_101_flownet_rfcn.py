@@ -27,6 +27,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.workspace = 512
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
+        #self.pre_filename_pre = mx.symbol.zeros(shape=(1))
+        #self.pre_filename = mx.symbol.zeros(shape=(1))
+        self.pre_filename_pre = mx.symbol.Variable(name='pre_filename_pre')
+        self.pre_filename = mx.symbol.Variable(name='pre_filename')
         self.pre_filename_pre = mx.symbol.zeros(shape=(1))
         self.pre_filename = mx.symbol.zeros(shape=(1))
         self.max_mem_block2 = mx.symbol.zeros(shape=(1,256,250,250))
@@ -2364,7 +2368,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         bbox_loss = mx.sym.Reshape(data=bbox_loss, shape=(cfg.TRAIN.BATCH_IMAGES, -1, 4 * num_reg_classes),
                                    name='bbox_loss_reshape')
 
-        group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label)])
+        group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), condition, self.pre_filename_pre, self.pre_filename])
         self.sym = group
         return group
 
