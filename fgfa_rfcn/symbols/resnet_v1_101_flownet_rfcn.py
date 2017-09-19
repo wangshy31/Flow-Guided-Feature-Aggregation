@@ -2433,7 +2433,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                    name='bbox_loss_reshape')
 
         group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), \
-                              mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
+                              #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
                               mx.sym.BlockGrad(mem_block4_tmp_relu), mx.sym.BlockGrad(mem_block5_tmp_relu)])
                               #condition, pre_filename, pre_filename_pre])
         self.sym = group
