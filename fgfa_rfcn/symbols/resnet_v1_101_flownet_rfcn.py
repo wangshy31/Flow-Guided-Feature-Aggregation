@@ -1019,7 +1019,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
 
 
-    def get_memory_resnet_v1_stage4(self, max_mem_block4, res3b3_relu, condition):
+    def get_memory_resnet_v1_stage4(self, flow_data, max_mem_block4, res3b3_relu, condition):
         res4a_branch1 = mx.symbol.Convolution(name='res4a_branch1', data=res3b3_relu, num_filter=1024, pad=(0, 0),
                                               kernel=(1, 1), stride=(2, 2), no_bias=True)
         bn4a_branch1 = mx.symbol.BatchNorm(name='bn4a_branch1', data=res4a_branch1,
@@ -1554,7 +1554,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
 
 
-    def get_memory_resnet_v1_stage5(self, max_mem_block5, block4_aft_mem, condition):
+    def get_memory_resnet_v1_stage5(self, flow_data, max_mem_block5, block4_aft_mem, condition):
         res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=block4_aft_mem, num_filter=2048, pad=(0, 0),
                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
         bn5a_branch1 = mx.symbol.BatchNorm(name='bn5a_branch1', data=res5a_branch1,
@@ -2314,8 +2314,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(data, flow, max_mem_block5, block4_aft_mem, mem_block4_tmp_relu, condition)
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
-        block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(max_mem_block4, res3b3_relu, condition)
-        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(max_mem_block5, block4_aft_mem, condition)
+        block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(flow, max_mem_block4, res3b3_relu, condition)
+        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, block4_aft_mem, condition)
 
         #res4b22_relu, res5c_relu = self.get_memory_resnet_v1_bottom(data)
         #mem_block5 = mx.symbol.Crop(*[self.max_mem_block5, res5c_relu], name='mem_block5')

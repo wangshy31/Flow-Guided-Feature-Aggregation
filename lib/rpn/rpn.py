@@ -159,8 +159,8 @@ def get_rpn_triple_batch(roidb, cfg):
         gt_boxes = np.empty((0, 5), dtype=np.float32)
 
     data = {'data': im_array,
-            'max_mem_block2': np.zeros((1, 256, 282, 282), dtype=np.float32),
-            'max_mem_block3': np.zeros((1, 512, 157, 157), dtype=np.float32),
+            #'max_mem_block2': np.zeros((1, 256, 282, 282), dtype=np.float32),
+            #'max_mem_block3': np.zeros((1, 512, 157, 157), dtype=np.float32),
             'max_mem_block4': np.zeros((1, 1024, 94, 94), dtype=np.float32),
             'max_mem_block5': np.zeros((1, 2048, 94, 94), dtype=np.float32),
             'filename_pre': np.array(filename_pre),
