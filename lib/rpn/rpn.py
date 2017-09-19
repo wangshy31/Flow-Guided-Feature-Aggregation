@@ -17,8 +17,37 @@ from utils.image import get_image, get_triple_image, tensor_vstack
 from generate_anchor import generate_anchors
 from bbox.bbox_transform import bbox_overlaps, bbox_transform
 
-
 def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
+    """
+    return a dict of testbatch
+    :param roidb: ['image', 'flipped']
+    :return: data, label, im_info
+    """
+    # assert len(roidb) == 1, 'Single batch only'
+    imgs, bef_imgs, roidb = get_image(roidb, cfg)
+    im_array = imgs
+    bef_im_array = bef_imgs
+    im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
+
+    data = [{'data': im_array[i],
+            'max_mem_block2': np.zeros((1, 256, 282, 282), dtype=np.float32),
+            'max_mem_block3': np.zeros((1, 512, 157, 157), dtype=np.float32),
+            'max_mem_block4': np.zeros((1, 1024, 94, 94), dtype=np.float32),
+            'max_mem_block5': np.zeros((1, 2048, 94, 94), dtype=np.float32),
+            'filename_pre': np.array([cur_roidb_index[i]]),
+            'filename': np.array([cur_frameid[i]]),
+            'pre_filename_pre': np.array([cur_roidb_index[i]]),
+            'pre_filename': np.array([cur_frameid[i]]),
+            'data_bef': bef_im_array[i],
+            #'data_aft': aft_im_array,
+            'im_info': im_info[i]} for i in range(len(roidb))]
+    label = {}
+
+    return data, label, im_info
+
+
+
+def get_rpn_testbatch_bak(roidb, cfg, cur_roidb_index, cur_frameid):
     """
     return a dict of testbatch
     :param roidb: ['image', 'flipped']
@@ -65,6 +94,14 @@ def get_rpn_batch(roidb, cfg):
     label = {'gt_boxes': gt_boxes}
 
     return data, label
+
+def get_rpn_pair_batch(roidb, cfg):
+    """
+    prototype for rpn batch: data, im_info, gt_boxes
+    :param roidb: ['image', 'flipped'] + ['gt_boxes', 'boxes', 'gt_classes']
+    :return: data, label
+    """
+    assert len(roidb) == 1, 'Single batch only'
 
 def get_rpn_pair_batch(roidb, cfg):
     """

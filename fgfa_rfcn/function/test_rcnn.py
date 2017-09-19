@@ -31,13 +31,18 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     # decide maximum shape
     data_names = [k[0] for k in test_data.provide_data_single]
     label_names = None
-    max_data_shape = [('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
+    max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ('data_bef', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
-                       ('filename', (config.TRAIN.BATCH_IMAGES,)),
-                       ('filename_pre', (config.TRAIN.BATCH_IMAGES,))
-                       ]
+                       ('filename', (1,)),
+                       ('filename_pre', (1,)),
+                       ('pre_filename', (1,)),
+                       ('pre_filename_pre', (1,)),
+                       ('max_mem_block2', (1, 256, 282, 282)),
+                       ('max_mem_block3', (1, 512, 157, 157)),
+                       ('max_mem_block4', (1, 1024, 94, 94)),
+                       ('max_mem_block5', (1, 2048, 94, 94))
+                       ]]
 
-    print data_names
     # create predictor
     predictor = Predictor(sym, data_names, label_names,
                           context=ctx, max_data_shapes=max_data_shape,
@@ -79,7 +84,6 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
         gpu_id = np.argmin(roidbs_seg_lens)
         roidbs[gpu_id].append(x)
         roidbs_seg_lens[gpu_id] += x['frame_seg_len']
-    print len(roidbs[0]), len(roidbs[1]), len(roidbs[2]), len(roidbs[3])
 
     # get test data iter
     test_datas = [TestLoader(x, cfg, batch_size=1, shuffle=shuffle, has_rpn=has_rpn) for x in roidbs]

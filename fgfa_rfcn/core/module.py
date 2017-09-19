@@ -25,10 +25,9 @@ from mxnet import metric
 from .DataParallelExecutorGroup import DataParallelExecutorGroup
 from mxnet import ndarray as nd
 from mxnet import optimizer as opt
-import numpy as np
+
 from PIL import Image
 from scipy import misc
-
 
 class Module(BaseModule):
     """Module is a basic module that wrap a `Symbol`. It is functionally the same
@@ -973,14 +972,14 @@ class MutableModule(BaseModule):
             tic = time.time()
             eval_metric.reset()
             for nbatch, data_batch in enumerate(train_data):
-                print 'nbatch: ', nbatch
                 if monitor is not None:
                     monitor.tic()
                 #print 'data_batch', data_batch.data
                 #print 'shape is ', pre_filename.shape[0], data_batch.data[0].shape[0]
                 #assert pre_filename.shape[0] == data_batch.data[0].shape[0] , 'pre_filename.shape[0] == data_batch.data.shape[0]'
                 #print 'data_batch!!!', data_batch.data[3][8].asnumpy(), data_batch.data[3][9].asnumpy(),data_batch.data[3][10].asnumpy(), data_batch.data[3][11].asnumpy()
-                print pre_filename_pre[0].asnumpy(), pre_filename[0].asnumpy()
+                f = pre_filename.asnumpy()[0]
+                fp = pre_filename_pre.asnumpy()[0]
                 for index in range(pre_filename.shape[0]):
                     data_batch.data[index][10] = pre_filename[index]
                     data_batch.data[index][11] = pre_filename_pre[index]
@@ -988,7 +987,7 @@ class MutableModule(BaseModule):
                     mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][5])
                     mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][6])
                     mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][7])
-
+                #misc.toimage(tmp_mem_block2[0][0].asnumpy()).save('images_train/mem_block2_'+str(fp)+'_'+str(f)+'.jpg')
 
                 self.forward_backward(data_batch)
                 #print 'self!!!',self.get_outputs(merge_multi_context = False)[-3][3].asnumpy(), self.get_outputs(merge_multi_context = False)[-2][3].asnumpy(), self.get_outputs(merge_multi_context = False)[-1][3].asnumpy()
@@ -1010,11 +1009,6 @@ class MutableModule(BaseModule):
                     tmp_mem_block5[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[8][index]
 
 
-                misc.toimage(self.get_outputs(merge_multi_context = False)[8][0][0][0].asnumpy()).save('images/m5_'+str(nbatch)+'.png')
-                misc.toimage(self.get_outputs(merge_multi_context = False)[10][0][0][0].asnumpy()).save('images/m5warp'+str(nbatch)+'.png')
-                misc.toimage(self.get_outputs(merge_multi_context = False)[11][0][0][0].asnumpy()).save('images/m5data'+str(nbatch)+'.png')
-                #print 'weight: ', self.get_outputs(merge_multi_context = False)[12][0].asnumpy(), self.get_outputs(merge_multi_context = False)[13][0].asnumpy()
-                #print 'mem_block2!!', self.get_outputs(merge_multi_context = False)[5][0].asnumpy()
 
                 for index in range(pre_filename.shape[0]):
                     pre_filename[index] = data_batch.data[index][8]

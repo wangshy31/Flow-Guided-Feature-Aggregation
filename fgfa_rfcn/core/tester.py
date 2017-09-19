@@ -21,6 +21,9 @@ from nms.seq_nms import seq_nms
 from utils.PrefetchingIter import PrefetchingIter
 from collections import deque
 
+from PIL import Image
+from scipy import misc
+
 
 class Predictor(object):
     def __init__(self, symbol, data_names, label_names,
@@ -159,7 +162,7 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
 
         scores_all.append(scores)
         pred_boxes_all.append(pred_boxes)
-    return zip(scores_all, pred_boxes_all, data_dict_all)
+    return zip(scores_all, pred_boxes_all, data_dict_all), output_all
 
 
 def im_batch_detect(predictor, data_batch, data_names, scales, cfg):
@@ -201,7 +204,7 @@ def pred_eval_seqnms(gpu_id,imdb):
         res=[all_boxes, frame_ids]
         imdb.evaluate_detections_multiprocess_seqnms(res, gpu_id)
 
-def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+def pred_eval_bak(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
     """
     wrapper for calculating offline validation for faster data analysis
     in this example, all threshold are set by hand
@@ -355,25 +358,149 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
 
     return all_boxes, frame_ids
 
+def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+    """
+    wrapper for calculating offline validation for faster data analysis
+    in this example, all threshold are set by hand
+    :param predictor: Predictor
+    :param test_data: data iterator, must be non-shuffle
+    :param imdb: image database
+    :param vis: controls visualization
+    :param thresh: valid detection threshold
+    :return:
+    """
+
+    det_file = os.path.join(imdb.result_path, imdb.name + '_'+ str(gpu_id))
+    if cfg.TEST.SEQ_NMS == True:
+        det_file += '_raw'
+    print 'det_file=',det_file
+    if os.path.exists(det_file) and not ignore_cache:
+        with open(det_file, 'rb') as fid:
+            all_boxes, frame_ids = cPickle.load(fid)
+        return all_boxes, frame_ids
+
+
+    assert vis or not test_data.shuffle
+    data_names = [k[0] for k in test_data.provide_data[0]]
+    num_images = test_data.size
+    roidb_frame_ids = [x['frame_id'] for x in test_data.roidb]
+
+    if not isinstance(test_data, PrefetchingIter):
+        test_data = PrefetchingIter(test_data)
+
+    nms = py_nms_wrapper(cfg.TEST.NMS)
+    # limit detections to max_per_image over all classes
+    max_per_image = cfg.TEST.max_per_image
+
+    # all detections are collected into:
+    #    all_boxes[cls][image] = N x 5 array of detections in
+    #    (x1, y1, x2, y2, score)
+    all_boxes = [[[] for _ in range(num_images)]
+                 for _ in range(imdb.num_classes)]
+    frame_ids = np.zeros(num_images, dtype=np.int)
+
+    roidb_idx = -1
+    roidb_offset = -1
+    idx = 0
+
+    data_time, net_time, post_time,seq_time = 0.0, 0.0, 0.0,0.0
+    t = time.time()
+
+    # loop through all the test data
+    pre_filename = mx.nd.zeros((1))
+    pre_filename_pre = mx.nd.zeros((1))
+    tmp_mem_block2 = mx.nd.zeros((1, 256, 282, 282), ctx = mx.gpu())
+    tmp_mem_block3 = mx.nd.zeros((1, 512, 157, 157), ctx = mx.gpu())
+    tmp_mem_block4 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
+    tmp_mem_block5 = mx.nd.zeros((1, 2048, 94, 94), ctx = mx.gpu())
+    for im_info, key_frame_flag, data_batch in test_data:
+        t1 = time.time() - t
+        t = time.time()
+
+        if key_frame_flag == 0:
+            roidb_idx += 1
+            roidb_offset = -1
+        scales = [iim_info[0, 2] for iim_info in im_info]
+        f = pre_filename.asnumpy()[0]
+        fp = pre_filename_pre.asnumpy()[0]
+        #misc.toimage(tmp_mem_block2[0][0].asnumpy()).save('images/mem_block2_'+str(fp)+'_'+str(f)+'.jpg')
+        for index in range(pre_filename.shape[0]):
+            data_batch.data[index][9] = pre_filename[index]
+            data_batch.data[index][10] = pre_filename_pre[index]
+            mx.nd.expand_dims(tmp_mem_block2[index], axis=0).copyto(data_batch.data[index][3])
+            mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][4])
+            mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][5])
+            mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][6])
+
+        pred_result, output = im_detect(feat_predictors, data_batch, data_names, scales, cfg)
+
+        roidb_offset += 1
+        frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset
+
+        t2 = time.time() - t
+        t = time.time()
+        process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, idx, max_per_image)
+        idx += test_data.batch_size
+
+        t3 = time.time() - t
+        t = time.time()
+        data_time += t1
+        net_time += t2
+        post_time += t3
+        print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
+                                                                             data_time / idx * test_data.batch_size,
+                                                                             net_time / idx * test_data.batch_size,
+                                                                             post_time / idx * test_data.batch_size)
+        if logger:
+            logger.info('testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
+                                                                                     data_time / idx * test_data.batch_size,
+                                                                                     net_time / idx * test_data.batch_size,
+                                                                                     post_time / idx * test_data.batch_size))
+
+        for index in range(pre_filename.shape[0]):
+            shape2 = output[index]['blockgrad0_output'].shape[2]
+            shape3 = output[index]['blockgrad0_output'].shape[3]
+            tmp_mem_block2[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad0_output']
+
+            shape2 = output[index]['blockgrad1_output'].shape[2]
+            shape3 = output[index]['blockgrad1_output'].shape[3]
+            tmp_mem_block3[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad1_output']
+
+            shape2 = output[index]['blockgrad2_output'].shape[2]
+            shape3 = output[index]['blockgrad2_output'].shape[3]
+            tmp_mem_block4[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad2_output']
+
+            shape2 = output[index]['blockgrad3_output'].shape[2]
+            shape3 = output[index]['blockgrad3_output'].shape[3]
+            tmp_mem_block5[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad3_output']
+
+            pre_filename[index] = data_batch.data[index][7]
+            pre_filename_pre[index] = data_batch.data[index][8]
+
+    with open(det_file, 'wb') as f:
+        cPickle.dump((all_boxes, frame_ids), f, protocol=cPickle.HIGHEST_PROTOCOL)
+
+    return all_boxes, frame_ids
+
 def run_dill_encode(payload):
     fun,args=dill.loads(payload)
     return fun(*args)
-    
+
 def apply_async(pool,fun,args):
     payload=dill.dumps((fun,args))
     return pool.apply_async(run_dill_encode,(payload,))
 
-def pred_eval_multiprocess(gpu_num, key_predictors, cur_predictors, test_datas, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+def pred_eval_multiprocess(gpu_num, key_predictors, test_datas, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
 
     if cfg.TEST.SEQ_NMS==False:
         if gpu_num == 1:
-            res = [pred_eval(0, key_predictors[0], cur_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger,
+            res = [pred_eval(0, key_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger,
                              ignore_cache), ]
         else:
             from multiprocessing.pool import ThreadPool as Pool
             pool = Pool(processes=gpu_num)
             multiple_results = [pool.apply_async(pred_eval, args=(
-            i, key_predictors[i], cur_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i
+            i, key_predictors[i],  test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i
                                 in range(gpu_num)]
             pool.close()
             pool.join()
@@ -383,14 +510,14 @@ def pred_eval_multiprocess(gpu_num, key_predictors, cur_predictors, test_datas, 
 
     else :
         if gpu_num == 1:
-            res = [pred_eval(0, key_predictors[0], cur_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger, ignore_cache),]
+            res = [pred_eval(0, key_predictors[0],  test_datas[0], imdb, cfg, vis, thresh, logger, ignore_cache),]
 
         else:
             from multiprocessing.pool import ThreadPool as Pool
 
             pool = Pool(processes=gpu_num)
             multiple_results = [pool.apply_async(pred_eval, args=(
-            i, key_predictors[i], cur_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i in
+            i, key_predictors[i],  test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i in
                                 range(gpu_num)]
             pool.close()
             pool.join()
@@ -487,7 +614,31 @@ def prepare_data(data_list, feat_list, data_batch):
     data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
 
 
-def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, idx, max_per_image, vis, center_image, scales):
+def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, idx, max_per_image):
+    for delta, (scores, boxes, data_dict) in enumerate(pred_result):
+        for j in range(1, imdb.num_classes):
+            indexes = np.where(scores[:, j] > thresh)[0]
+            cls_scores = scores[indexes, j, np.newaxis]
+            cls_boxes = boxes[indexes, 4:8] if cfg.CLASS_AGNOSTIC else boxes[indexes, j * 4:(j + 1) * 4]
+            cls_dets = np.hstack((cls_boxes, cls_scores))
+            if cfg.TEST.SEQ_NMS:
+                all_boxes[j][idx+delta]=cls_dets
+            else:
+                keep = nms(cls_dets)
+                all_boxes[j][idx + delta] = cls_dets[keep, :]
+
+        if cfg.TEST.SEQ_NMS==False and  max_per_image > 0:
+            image_scores = np.hstack([all_boxes[j][idx + delta][:, -1]
+                                      for j in range(1, imdb.num_classes)])
+            if len(image_scores) > max_per_image:
+                image_thresh = np.sort(image_scores)[-max_per_image]
+                for j in range(1, imdb.num_classes):
+                    keep = np.where(all_boxes[j][idx + delta][:, -1] >= image_thresh)[0]
+                    all_boxes[j][idx + delta] = all_boxes[j][idx + delta][keep, :]
+
+
+
+def process_pred_result_bak(pred_result, imdb, thresh, cfg, nms, all_boxes, idx, max_per_image, vis, center_image, scales):
     for delta, (scores, boxes, data_dict) in enumerate(pred_result):
         for j in range(1, imdb.num_classes):
             indexes = np.where(scores[:, j] > thresh)[0]
