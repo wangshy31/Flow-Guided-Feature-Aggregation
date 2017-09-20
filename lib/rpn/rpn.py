@@ -30,8 +30,8 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
 
     data = [{'data': im_array[i],
-            'max_mem_block2': np.zeros((1, 256, 282, 282), dtype=np.float32),
-            'max_mem_block3': np.zeros((1, 512, 157, 157), dtype=np.float32),
+            #'max_mem_block2': np.zeros((1, 256, 282, 282), dtype=np.float32),
+            #'max_mem_block3': np.zeros((1, 512, 157, 157), dtype=np.float32),
             'max_mem_block4': np.zeros((1, 1024, 94, 94), dtype=np.float32),
             'max_mem_block5': np.zeros((1, 2048, 94, 94), dtype=np.float32),
             'filename_pre': np.array([cur_roidb_index[i]]),

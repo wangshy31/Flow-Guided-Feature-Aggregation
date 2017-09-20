@@ -33,8 +33,8 @@ class TestLoader(mx.io.DataIter):
 
         # decide data and label names (only for training)
         #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
-        self.data_name = ['data', 'data_bef', 'im_info', 'max_mem_block2', \
-                          'max_mem_block3', 'max_mem_block4', 'max_mem_block5', \
+        self.data_name = ['data', 'data_bef', 'im_info', \
+                          'max_mem_block4', 'max_mem_block5', \
                           'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         self.label_name = None
 
@@ -123,8 +123,8 @@ class TestLoader(mx.io.DataIter):
                         'filename': data[0]['filename'],
                         'pre_filename_pre': data[0]['pre_filename_pre'],
                         'pre_filename': data[0]['pre_filename'],
-                        'max_mem_block2': data[0]['max_mem_block2'],
-                        'max_mem_block3': data[0]['max_mem_block3'],
+                        #'max_mem_block2': data[0]['max_mem_block2'],
+                        #'max_mem_block3': data[0]['max_mem_block3'],
                         'max_mem_block4': data[0]['max_mem_block4'],
                         'max_mem_block5': data[0]['max_mem_block5']
                         }]
@@ -153,8 +153,8 @@ class TestLoader(mx.io.DataIter):
                         'filename': data[0]['filename'],
                         'pre_filename_pre': data[0]['pre_filename_pre'],
                         'pre_filename': data[0]['pre_filename'],
-                        'max_mem_block2': data[0]['max_mem_block2'],
-                        'max_mem_block3': data[0]['max_mem_block3'],
+                        #'max_mem_block2': data[0]['max_mem_block2'],
+                        #'max_mem_block3': data[0]['max_mem_block3'],
                         'max_mem_block4': data[0]['max_mem_block4'],
                         'max_mem_block5': data[0]['max_mem_block5']
                         }]
