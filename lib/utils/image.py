@@ -114,8 +114,8 @@ def get_triple_image(roidb, config):
     """
     num_images = len(roidb)
     processed_ims = []
-    processed_filename_pre = []
-    processed_filename = []
+    #processed_filename_pre = []
+    #processed_filename = []
     processed_bef_ims = []
     processed_aft_ims = []
     processed_roidb = []
@@ -158,8 +158,8 @@ def get_triple_image(roidb, config):
         bef_im_tensor = transform(bef_im, config.network.PIXEL_MEANS)
         aft_im_tensor = transform(aft_im, config.network.PIXEL_MEANS)
         processed_ims.append(im_tensor)
-        processed_filename_pre.append(int(roi_rec['image'].split('/')[-2].split('_')[-1].replace('n','')))
-        processed_filename.append(int(roi_rec['image'].split('/')[-1].split('.')[0].split('_')[-1]))
+        #processed_filename_pre.append(int(roi_rec['image'].split('/')[-2].split('_')[-1].replace('n','')))
+        #processed_filename.append(int(roi_rec['image'].split('/')[-1].split('.')[0].split('_')[-1]))
         processed_bef_ims.append(bef_im_tensor)
         processed_aft_ims.append(aft_im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
@@ -167,7 +167,7 @@ def get_triple_image(roidb, config):
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
     #return processed_ims, processed_bef_ims, processed_aft_ims, processed_roidb
-    return processed_ims, processed_filename_pre, processed_filename, processed_bef_ims, processed_aft_ims, processed_roidb
+    return processed_ims, processed_bef_ims, processed_aft_ims, processed_roidb
 
 def resize(im, target_size, max_size, stride=0, interpolation = cv2.INTER_LINEAR):
     """

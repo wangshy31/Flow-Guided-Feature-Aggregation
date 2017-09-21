@@ -83,16 +83,17 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
 
     # infer max shape
     print config.SCALES, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])
-    max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
-                      ('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
+    max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))
+                      #('data_bef', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES]))),
                       #('max_mem_block2', (config.TRAIN.BATCH_IMAGES, 256, 282, 282)),
                       #('max_mem_block3', (config.TRAIN.BATCH_IMAGES, 512, 157, 157)),
-                      ('max_mem_block4', (config.TRAIN.BATCH_IMAGES, 1024, 94, 94)),
-                      ('max_mem_block5', (config.TRAIN.BATCH_IMAGES, 2048, 94, 94)),
-                      ('filename', (config.TRAIN.BATCH_IMAGES,)),
-                      ('filename_pre', (config.TRAIN.BATCH_IMAGES,)),
-                      ('pre_filename', (config.TRAIN.BATCH_IMAGES,)),
-                      ('pre_filename_pre', (config.TRAIN.BATCH_IMAGES,))]
+                      #('max_mem_block4', (config.TRAIN.BATCH_IMAGES, 1024, 94, 94)),
+                      #('max_mem_block5', (config.TRAIN.BATCH_IMAGES, 2048, 94, 94)),
+                      #('filename', (config.TRAIN.BATCH_IMAGES,)),
+                      #('filename_pre', (config.TRAIN.BATCH_IMAGES,)),
+                      #('pre_filename', (config.TRAIN.BATCH_IMAGES,)),
+                      #('pre_filename_pre', (config.TRAIN.BATCH_IMAGES,))]
+                      ]
                       #('data_aft', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     print max_data_shape

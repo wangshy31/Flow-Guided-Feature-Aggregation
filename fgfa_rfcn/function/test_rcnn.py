@@ -33,14 +33,14 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     label_names = None
     max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ('data_bef', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
-                       ('filename', (1,)),
-                       ('filename_pre', (1,)),
-                       ('pre_filename', (1,)),
-                       ('pre_filename_pre', (1,)),
+                       #('filename', (1,)),
+                       #('filename_pre', (1,)),
+                       #('pre_filename', (1,)),
+                       #('pre_filename_pre', (1,)),
                        #('max_mem_block2', (1, 256, 282, 282)),
                        #('max_mem_block3', (1, 512, 157, 157)),
-                       ('max_mem_block4', (1, 1024, 94, 94)),
-                       ('max_mem_block5', (1, 2048, 94, 94))
+                       #('max_mem_block4', (1, 1024, 94, 94)),
+                       #('max_mem_block5', (1, 2048, 94, 94))
                        ]]
 
     # create predictor
