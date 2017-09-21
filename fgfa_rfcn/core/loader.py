@@ -33,7 +33,7 @@ class TestLoader(mx.io.DataIter):
 
         # decide data and label names (only for training)
         #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
-        self.data_name = ['data', 'data_bef', 'im_info']
+        self.data_name = ['data', 'im_info']
                           #'max_mem_block4', 'max_mem_block5', \
                           #'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         self.label_name = None
