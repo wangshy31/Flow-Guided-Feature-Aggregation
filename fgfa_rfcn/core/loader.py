@@ -257,6 +257,50 @@ class AnchorLoader(mx.io.DataIter):
     def provide_label_single(self):
         return [(k, v.shape) for k, v in zip(self.label_name, self.label[0])]
 
+    def shuffle_seg(self):
+        image_list = []
+        pre = ''
+        tmp_list = []
+        for i in range(len(self.roidb)):
+            line = self.roidb[i]['image'].split('/')[-2]
+            if self.roidb[i]['pattern']=='':
+                if len(tmp_list) != 0:
+                    image_list.append(tmp_list)
+                tmp_list = []
+                image_list.append([i])
+            else:
+                if line == pre:
+                    if len(tmp_list)<10:
+                        tmp_list.append(i)
+                    else:
+                        image_list.append(tmp_list)
+                        tmp_list = []
+                        tmp_list.append(i)
+                else:
+                    if len(tmp_list) != 0:
+                        image_list.append(tmp_list)
+                        tmp_list = []
+                        tmp_list.append(i)
+                    else:
+                        tmp_list.append(i)
+            pre = line
+        if len(tmp_list) != 0:
+            image_list.append(tmp_list)
+        np.random.shuffle(image_list)
+        with open('list_org.txt','w') as f:
+            for i in self.index:
+                f.write(str(i)+'\n')
+
+        self.index = []
+        with open('list_shuffle.txt','w') as f:
+            for i in image_list:
+                for j in i:
+                    self.index.append(j)
+                    f.write(str(j)+"\n")
+
+
+
+
     def reset(self):
         self.cur = 0
         if self.shuffle:
@@ -268,13 +312,18 @@ class AnchorLoader(mx.io.DataIter):
                 horz_inds = np.where(horz)[0]
                 vert_inds = np.where(vert)[0]
                 inds = np.hstack((np.random.permutation(horz_inds), np.random.permutation(vert_inds)))
+                print 'inds: ', inds
                 extra = inds.shape[0] % self.batch_size
                 inds_ = np.reshape(inds[:-extra], (-1, self.batch_size))
+                print 'inds_ ',inds_
                 row_perm = np.random.permutation(np.arange(inds_.shape[0]))
+                print 'row_perm: ', row_perm
                 inds[:-extra] = np.reshape(inds_[row_perm, :], (-1,))
                 self.index = inds
+                print 'self.index: ', self.index
             else:
-                np.random.shuffle(self.index)
+                self.shuffle_seg()
+                #np.random.shuffle(self.index)
 
     def iter_next(self):
         return self.cur + self.batch_size <= self.size

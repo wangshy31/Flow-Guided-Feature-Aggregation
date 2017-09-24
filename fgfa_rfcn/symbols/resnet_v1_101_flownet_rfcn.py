@@ -1654,7 +1654,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=2)
         #weight1 = mx.symbol.tile(data=weights[0], reps=(1, 2048, 1, 1))
         #weight2 = mx.symbol.tile(data=weights[1], reps=(1, 2048, 1, 1))
-        block5_aft_mem = mx.symbol.mean(res5c_relu + mem_block5_tmp_relu, axis=(0, ), keepdims = True)
+        block5_aft_mem = res5c_relu + mem_block5_tmp_relu
+        block5_aft_mem = block5_aft_mem/2
         ####memory_block5####
 
 

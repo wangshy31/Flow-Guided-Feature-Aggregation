@@ -68,7 +68,7 @@ TRAIN:
   # whether flip image
   FLIP: false
   # whether shuffle image
-  SHUFFLE: false
+  SHUFFLE: true
   # whether use OHEM
   ENABLE_OHEM: true
   # size of images for each device, 1 for e2e
@@ -76,7 +76,7 @@ TRAIN:
   # e2e changes behavior of anchor loader and metric
   END2END: true
   # group images with similar aspect ratio
-  ASPECT_GROUPING: true
+  ASPECT_GROUPING: false
   # R-CNN
   # rcnn rois batch size
   BATCH_ROIS: -1
