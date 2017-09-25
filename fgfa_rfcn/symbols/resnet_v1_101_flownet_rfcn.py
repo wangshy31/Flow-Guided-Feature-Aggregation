@@ -1665,7 +1665,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
 
 
-        return feat_conv_3x3_relu, mem_block5_tmp_relu
+        return feat_conv_3x3_relu, block5_aft_mem
 
     def get_embednet(self, data, em_name=None):
         em_conv1 = mx.symbol.Convolution(name=em_name+'em_conv1', data=data, num_filter=256, pad=(0, 0),
@@ -1981,7 +1981,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
+        conv_feat, block5_aft_mem = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
         #block2_aft_mem, mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, max_mem_block2, pool1, condition)
         #block3_aft_mem, mem_block3_tmp_relu = self.get_memory_resnet_v1_stage3(data, flow, max_mem_block3, block2_aft_mem, mem_block2_tmp_relu, condition)
         #block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(data, flow, max_mem_block4, block3_aft_mem, mem_block3_tmp_relu, condition)
@@ -2056,7 +2056,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_block5_tmp_relu)])
+                              mx.sym.BlockGrad(block5_aft_mem)])
 
         self.sym = group
         return group
@@ -2295,7 +2295,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #data_aft = mx.sym.Variable(name="data_aft")
         #max_mem_block2 = mx.sym.Variable(name="max_mem_block2")
         #max_mem_block3 = mx.sym.Variable(name="max_mem_block3")
-        max_mem_block4 = mx.sym.Variable(name="max_mem_block4")
+        #max_mem_block4 = mx.sym.Variable(name="max_mem_block4")
         max_mem_block5 = mx.sym.Variable(name="max_mem_block5")
         im_info = mx.sym.Variable(name="im_info")
         gt_boxes = mx.sym.Variable(name="gt_boxes")
@@ -2321,7 +2321,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
+        conv_feat, block5_aft_mem = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
 
         #res4b22_relu, res5c_relu = self.get_memory_resnet_v1_bottom(data)
         #mem_block5 = mx.symbol.Crop(*[self.max_mem_block5, res5c_relu], name='mem_block5')
@@ -2440,7 +2440,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), \
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_block5_tmp_relu)])
+                              mx.sym.BlockGrad(block5_aft_mem)])
                               #condition, pre_filename, pre_filename_pre])
         self.sym = group
         return group
