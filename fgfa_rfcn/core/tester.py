@@ -425,12 +425,12 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
         #fp = pre_filename_pre.asnumpy()[0]
         #misc.toimage(tmp_mem_block4[0][0].asnumpy()).save('images/mem_block4_'+str(fp)+'_'+str(f)+'.jpg')
         for index in range(pre_filename.shape[0]):
-            data_batch.data[index][6] = pre_filename[index]
-            data_batch.data[index][7] = pre_filename_pre[index]
+            data_batch.data[index][7] = pre_filename[index]
+            data_batch.data[index][8] = pre_filename_pre[index]
             #mx.nd.expand_dims(tmp_mem_block2[index], axis=0).copyto(data_batch.data[index][3])
             #mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][4])
             #mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][3])
-            mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][3])
+            mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][4])
 
         pred_result, output = im_detect(feat_predictors, data_batch, data_names, scales, cfg)
 
@@ -474,8 +474,8 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
             shape3 = output[index]['blockgrad0_output'].shape[3]
             tmp_mem_block5[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad0_output']
 
-            pre_filename[index] = data_batch.data[index][4]
-            pre_filename_pre[index] = data_batch.data[index][5]
+            pre_filename[index] = data_batch.data[index][5]
+            pre_filename_pre[index] = data_batch.data[index][6]
 
     with open(det_file, 'wb') as f:
         cPickle.dump((all_boxes, frame_ids), f, protocol=cPickle.HIGHEST_PROTOCOL)

@@ -981,12 +981,12 @@ class MutableModule(BaseModule):
                 #f = pre_filename.asnumpy()[0]
                 #fp = pre_filename_pre.asnumpy()[0]
                 for index in range(pre_filename.shape[0]):
-                    data_batch.data[index][7] = pre_filename[index]
-                    data_batch.data[index][8] = pre_filename_pre[index]
+                    data_batch.data[index][8] = pre_filename[index]
+                    data_batch.data[index][9] = pre_filename_pre[index]
                     #mx.nd.expand_dims(tmp_mem_block2[index], axis=0).copyto(data_batch.data[index][4])
                     #mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][5])
                     #mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][4])
-                    mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][4])
+                    mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][5])
                 #misc.toimage(tmp_mem_block2[0][0].asnumpy()).save('images_train/mem_block2_'+str(fp)+'_'+str(f)+'.jpg')
 
                 self.forward_backward(data_batch)
@@ -1011,8 +1011,8 @@ class MutableModule(BaseModule):
 
 
                 for index in range(pre_filename.shape[0]):
-                    pre_filename[index] = data_batch.data[index][5]
-                    pre_filename_pre[index] = data_batch.data[index][6]
+                    pre_filename[index] = data_batch.data[index][6]
+                    pre_filename_pre[index] = data_batch.data[index][7]
                 #print 'output_names: ', self.get_outputs(merge_multi_context = False)[0][0].asnumpy()
                 self.update()
                 self.update_metric(eval_metric, data_batch.label)

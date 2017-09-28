@@ -33,6 +33,7 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     label_names = None
     max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ('data_bef', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
+                       ('data_pattern', (1,)),
                        ('filename', (1,)),
                        ('filename_pre', (1,)),
                        ('pre_filename', (1,)),

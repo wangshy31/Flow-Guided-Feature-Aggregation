@@ -1630,7 +1630,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #stream3: from t-1
         mem_block5 = mx.symbol.Crop(*[max_mem_block5, res5c_relu], name='mem_block5')
         #m5 = mx.symbol.where(condition=condition.__eq__(2), x = mem_block5, y = mx.symbol.zeros_like(res5c_relu), name='m5')
-        m5 = mx.symbol.where(condition=condition.__eq__(2), x = mem_block5, y = mx.symbol.zeros_like(res5c_relu), name='m5')
+        m5 = mx.symbol.where(condition=condition.__eq__(3), x = mem_block5, y = mx.symbol.zeros_like(res5c_relu), name='m5')
         mem_block5_t = mx.symbol.Convolution(name='mem_block5_t', data=m5, num_filter=2048, pad=(1, 1),
                                               kernel=(3, 3), stride=(1, 1), no_bias=True)
         mem_block5_t_relu = mx.symbol.Activation(name='mem_block5_t_relu', data=mem_block5_t, act_type='relu')
@@ -1655,7 +1655,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #weight1 = mx.symbol.tile(data=weights[0], reps=(1, 2048, 1, 1))
         #weight2 = mx.symbol.tile(data=weights[1], reps=(1, 2048, 1, 1))
         block5_aft_mem = res5c_relu + mem_block5_tmp_relu
-        block5_aft_mem = block5_aft_mem/2
+        #block5_aft_mem = block5_aft_mem/2
         ####memory_block5####
 
 
@@ -1972,10 +1972,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         filename = mx.symbol.Variable(name ="filename")
         pre_filename_pre = mx.symbol.Variable(name ="pre_filename_pre")
         pre_filename = mx.symbol.Variable(name ="pre_filename")
+        pattern = mx.symbol.Variable(name='data_pattern')
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
-        condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
+        #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
+        condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
 
         pool1 = self.get_memory_resnet_v1_stage1(data)
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
@@ -2308,10 +2310,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pre_filename_pre = mx.symbol.Variable(name ="pre_filename_pre")
         pre_filename = mx.symbol.Variable(name ="pre_filename")
 
+        pattern = mx.symbol.Variable(name='data_pattern')
+
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
-        condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
+        #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
+        condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
         # pass through ResNet
         pool1 = self.get_memory_resnet_v1_stage1(data)
 #        block2_aft_mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, max_mem_block2, pool1, condition)

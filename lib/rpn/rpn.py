@@ -24,7 +24,7 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
     :return: data, label, im_info
     """
     # assert len(roidb) == 1, 'Single batch only'
-    imgs, bef_imgs, roidb = get_image(roidb, cfg)
+    imgs, bef_imgs, pattern, roidb = get_image(roidb, cfg)
     im_array = imgs
     bef_im_array = bef_imgs
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
@@ -39,6 +39,7 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
             'pre_filename_pre': np.array([cur_roidb_index[i]]),
             'pre_filename': np.array([cur_frameid[i]]),
             'data_bef': bef_im_array[i],
+            'data_pattern': np.array(pattern),
             #'data_aft': aft_im_array,
             'im_info': im_info[i]} for i in range(len(roidb))]
     label = {}
@@ -141,11 +142,11 @@ def get_rpn_triple_batch(roidb, cfg):
     """
     assert len(roidb) == 1, 'Single batch only'
     #imgs, bef_imgs, aft_imgs, roidb = get_triple_image(roidb, cfg)
-    imgs, filename_pre, filename, bef_imgs, aft_imgs, roidb = get_triple_image(roidb, cfg)
+    imgs, filename_pre, filename, bef_imgs, pattern, roidb = get_triple_image(roidb, cfg)
 
     im_array = imgs[0]
     bef_im_array = bef_imgs[0]
-    aft_im_array = aft_imgs[0]
+    #aft_im_array = aft_imgs[0]
 
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
@@ -168,7 +169,7 @@ def get_rpn_triple_batch(roidb, cfg):
             'pre_filename_pre': np.array(filename_pre),
             'pre_filename': np.array(filename),
             'data_bef': bef_im_array,
-            #'data_aft': aft_im_array,
+            'data_pattern': np.array(pattern),
             'im_info': im_info}
     label = {'gt_boxes': gt_boxes}
 
