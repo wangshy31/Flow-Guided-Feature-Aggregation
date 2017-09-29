@@ -412,7 +412,7 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
     #tmp_mem_block2 = mx.nd.zeros((1, 256, 282, 282), ctx = mx.gpu())
     #tmp_mem_block3 = mx.nd.zeros((1, 512, 157, 157), ctx = mx.gpu())
     #tmp_mem_block4 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
-    tmp_mem_block5 = mx.nd.zeros((1, 2048, 94, 94), ctx = mx.gpu())
+    tmp_mem_block5 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
     for im_info, key_frame_flag, data_batch in test_data:
         t1 = time.time() - t
         t = time.time()
