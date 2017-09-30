@@ -28,9 +28,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
         self.rnn_params = {}
-        #self.rnn_param['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
-        #self.rnn_param['mem_h2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_h2h_weight'])
-        #self.rnn_param['mem_h2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_h2h_bias'])
     def get_param(self, name):
         if name not in self.rnn_params:
             self.rnn_params[name] = mx.symbol.Variable(name)
@@ -870,11 +867,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
     def get_lstm_symbol(self, inputs, states, hidden):
         mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, weight=self.get_param('mem_i2h_weight'),
                                         bias = self.get_param('mem_i2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
-        #mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
         mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, weight=self.get_param('mem_h2h_weight'),
                                         bias = self.get_param('mem_h2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
-        #mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
         gates = mem_i2h + mem_h2h
         slice_gates = mx.symbol.SliceChannel(gates, num_outputs=4, name='slice_gates')
@@ -929,13 +924,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #features for data
         mem_bef_cell_warp = mx.sym.BilinearSampler(data=mem_bef_cell, grid=flow_grid_1, name='mem_bef_cell_warp')
         mem_bef_hidden_warp = mx.sym.BilinearSampler(data=mem_bef_hidden, grid=flow_grid_1, name='mem_bef_hidden_warp')
-        mem_data_cell_warp, mem_data_hidden_warp = self.get_lstm_symbol(conv_feat[0], mem_bef_cell_warp, mem_bef_hidden_warp)
+        mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat[0], mem_bef_cell_warp, mem_bef_hidden_warp)
         #features for aft
-        mem_data_cell_warp = mx.sym.BilinearSampler(data=mem_data_cell_warp, grid=flow_grid_2, name='mem_data_cell_warp')
-        mem_data_hidden_warp = mx.sym.BilinearSampler(data=mem_data_cell_warp, grid=flow_grid_2, name='mem_data_cell_warp')
-        mem_aft_cell_warp, mem_aft_hidden_warp = self.get_lstm_symbol(conv_feat[2], mem_data_cell_warp, mem_data_hidden_warp)
+        mem_data_cell_warp = mx.sym.BilinearSampler(data=mem_data_cell, grid=flow_grid_2, name='mem_data_cell_warp')
+        mem_data_hidden_warp = mx.sym.BilinearSampler(data=mem_data_hidden, grid=flow_grid_2, name='mem_data_hidden_warp')
+        mem_aft_cell, mem_aft_hidden = self.get_lstm_symbol(conv_feat[2], mem_data_cell_warp, mem_data_hidden_warp)
 
-        conv_feats = mx.sym.SliceChannel(mem_aft_cell_warp, axis=1, num_outputs=2)
+        conv_feats = mx.sym.SliceChannel(mem_aft_cell, axis=1, num_outputs=2)
 
 
         #warp_conv_feat_1 = mx.sym.BilinearSampler(data=conv_feat[1], grid=flow_grid_1, name='warping_feat_1')
@@ -1208,7 +1203,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
 
-        print 'self.arg_shape_dict[mem_i2h_weight]', self.arg_shape_dict['mem_i2h_weight']
         arg_params['mem_i2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_i2h_weight'])
         arg_params['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
         arg_params['mem_h2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_h2h_weight'])
