@@ -1067,6 +1067,168 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.sym = group
         return group
 
+
+    def get_mem_aver_symbol(self, cfg):
+        # config alias for convenient
+        print enter 'get_mem_aver_symbol!'
+        num_classes = cfg.dataset.NUM_CLASSES
+        num_reg_classes = (2 if cfg.CLASS_AGNOSTIC else num_classes)
+        num_anchors = cfg.network.NUM_ANCHORS
+
+        data = mx.sym.Variable(name="data")
+        data_bef = mx.sym.Variable(name="data_bef")
+        data_aft = mx.sym.Variable(name="data_aft")
+        im_info = mx.sym.Variable(name="im_info")
+        gt_boxes = mx.sym.Variable(name="gt_boxes")
+        rpn_label = mx.sym.Variable(name='label')
+        rpn_bbox_target = mx.sym.Variable(name='bbox_target')
+        rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
+
+        # pass through ResNet
+        concat_data = mx.symbol.Concat(*[data, data_bef, data_aft], dim=0)
+        conv_feat = self.get_resnet_v1(concat_data)
+
+        # pass through FlowNet
+        concat_flow_data_1 = mx.symbol.Concat(data_aft / 255.0, data_bef / 255.0, dim=1)
+        concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
+        #concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
+        concat_flow_data = mx.symbol.Concat(concat_flow_data_1, concat_flow_data_2, dim=0)
+        flow = self.get_flownet(concat_flow_data)
+
+        flow = mx.sym.SliceChannel(flow, axis=0, num_outputs=2)
+        conv_feat = mx.sym.SliceChannel(conv_feat, axis=0, num_outputs=3)
+
+        # warping
+        flow_grid_1 = mx.sym.GridGenerator(data=flow[0], transform_type='warp', name='flow_grid_1')
+        flow_grid_2 = mx.sym.GridGenerator(data=flow[1], transform_type='warp', name='flow_grid_2')
+
+
+
+        #features for aft
+        mem_bef_warp = mx.sym.BilinearSampler(data=conv_feat[1], grid=flow_grid_1, name='mem_bef_warp')
+        mem_aft_add = mem_bef_warp + conv_feat[2]
+        mem_aft_aver = mem_aft_add / 2
+        #features for data
+        mem_aft_warp = mx.sym.BilinearSampler(data=mem_aft_aver, grid=flow_grid_2, name='mem_aft_warp')
+        mem_data_add = mem_aft_warp + conv_feat[0]
+        mem_data_aver = mem_data_add /2
+
+        conv_feats = mx.sym.SliceChannel(mem_data_aver, axis=1, num_outputs=2)
+
+
+
+        # RPN layers
+        rpn_feat = conv_feats[0]
+        rpn_cls_score = mx.sym.Convolution(
+            data=rpn_feat, kernel=(1, 1), pad=(0, 0), num_filter=2 * num_anchors, name="rpn_cls_score")
+        rpn_bbox_pred = mx.sym.Convolution(
+            data=rpn_feat, kernel=(1, 1), pad=(0, 0), num_filter=4 * num_anchors, name="rpn_bbox_pred")
+
+        # prepare rpn data
+        rpn_cls_score_reshape = mx.sym.Reshape(
+            data=rpn_cls_score, shape=(0, 2, -1, 0), name="rpn_cls_score_reshape")
+
+        # classification
+        rpn_cls_prob = mx.sym.SoftmaxOutput(data=rpn_cls_score_reshape, label=rpn_label, multi_output=True,
+                                            normalization='valid', use_ignore=True, ignore_label=-1,
+                                            name="rpn_cls_prob")
+        # bounding box regression
+        if cfg.network.NORMALIZE_RPN:
+            rpn_bbox_loss_ = rpn_bbox_weight * mx.sym.smooth_l1(name='rpn_bbox_loss_', scalar=1.0,
+                                                                data=(rpn_bbox_pred - rpn_bbox_target))
+            rpn_bbox_pred = mx.sym.Custom(
+                bbox_pred=rpn_bbox_pred, op_type='rpn_inv_normalize', num_anchors=num_anchors,
+                bbox_mean=cfg.network.ANCHOR_MEANS, bbox_std=cfg.network.ANCHOR_STDS)
+        else:
+            rpn_bbox_loss_ = rpn_bbox_weight * mx.sym.smooth_l1(name='rpn_bbox_loss_', scalar=3.0,
+                                                                data=(rpn_bbox_pred - rpn_bbox_target))
+        rpn_bbox_loss = mx.sym.MakeLoss(name='rpn_bbox_loss', data=rpn_bbox_loss_,
+                                        grad_scale=1.0 / cfg.TRAIN.RPN_BATCH_SIZE)
+
+        # ROI proposal
+        rpn_cls_act = mx.sym.SoftmaxActivation(
+            data=rpn_cls_score_reshape, mode="channel", name="rpn_cls_act")
+        rpn_cls_act_reshape = mx.sym.Reshape(
+            data=rpn_cls_act, shape=(0, 2 * num_anchors, -1, 0), name='rpn_cls_act_reshape')
+
+        if cfg.TRAIN.CXX_PROPOSAL:
+            rois = mx.contrib.sym.Proposal(
+                cls_prob=rpn_cls_act_reshape, bbox_pred=rpn_bbox_pred, im_info=im_info, name='rois',
+                feature_stride=cfg.network.RPN_FEAT_STRIDE, scales=tuple(cfg.network.ANCHOR_SCALES),
+                ratios=tuple(cfg.network.ANCHOR_RATIOS),
+                rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
+                threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
+        else:
+            rois = mx.sym.Custom(
+                cls_prob=rpn_cls_act_reshape, bbox_pred=rpn_bbox_pred, im_info=im_info, name='rois',
+                op_type='proposal', feat_stride=cfg.network.RPN_FEAT_STRIDE,
+                scales=tuple(cfg.network.ANCHOR_SCALES), ratios=tuple(cfg.network.ANCHOR_RATIOS),
+                rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
+                threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
+
+            # ROI proposal target
+        gt_boxes_reshape = mx.sym.Reshape(data=gt_boxes, shape=(-1, 5), name='gt_boxes_reshape')
+        rois, label, bbox_target, bbox_weight = mx.sym.Custom(rois=rois, gt_boxes=gt_boxes_reshape,
+                                                              op_type='proposal_target',
+                                                              num_classes=num_reg_classes,
+                                                              batch_images=cfg.TRAIN.BATCH_IMAGES,
+                                                              batch_rois=cfg.TRAIN.BATCH_ROIS,
+                                                              cfg=cPickle.dumps(cfg),
+                                                              fg_fraction=cfg.TRAIN.FG_FRACTION)
+
+        # res5
+        rfcn_feat = conv_feats[1]
+        rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
+        rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+                                       name="rfcn_bbox")
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=rois,
+                                                           group_size=7,
+                                                           pooled_size=7,
+                                                           output_dim=num_classes, spatial_scale=0.0625)
+        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
+                                                           group_size=7,
+                                                           pooled_size=7,
+                                                           output_dim=8, spatial_scale=0.0625)
+        cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois, pool_type='avg',
+                                   global_pool=True,
+                                   kernel=(7, 7))
+        bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
+                                   global_pool=True,
+                                   kernel=(7, 7))
+        cls_score = mx.sym.Reshape(name='cls_score_reshape', data=cls_score, shape=(-1, num_classes))
+        bbox_pred = mx.sym.Reshape(name='bbox_pred_reshape', data=bbox_pred, shape=(-1, 4 * num_reg_classes))
+
+        # classification
+        if cfg.TRAIN.ENABLE_OHEM:
+            print 'use ohem!'
+            labels_ohem, bbox_weights_ohem = mx.sym.Custom(op_type='BoxAnnotatorOHEM', num_classes=num_classes,
+                                                           num_reg_classes=num_reg_classes,
+                                                           roi_per_img=cfg.TRAIN.BATCH_ROIS_OHEM,
+                                                           cls_score=cls_score, bbox_pred=bbox_pred, labels=label,
+                                                           bbox_targets=bbox_target, bbox_weights=bbox_weight)
+            cls_prob = mx.sym.SoftmaxOutput(name='cls_prob', data=cls_score, label=labels_ohem, normalization='valid',
+                                            use_ignore=True, ignore_label=-1)
+            bbox_loss_ = bbox_weights_ohem * mx.sym.smooth_l1(name='bbox_loss_', scalar=1.0,
+                                                              data=(bbox_pred - bbox_target))
+            bbox_loss = mx.sym.MakeLoss(name='bbox_loss', data=bbox_loss_, grad_scale=1.0 / cfg.TRAIN.BATCH_ROIS_OHEM)
+            rcnn_label = labels_ohem
+        else:
+            cls_prob = mx.sym.SoftmaxOutput(name='cls_prob', data=cls_score, label=label, normalization='valid')
+            bbox_loss_ = bbox_weight * mx.sym.smooth_l1(name='bbox_loss_', scalar=1.0, data=(bbox_pred - bbox_target))
+            bbox_loss = mx.sym.MakeLoss(name='bbox_loss', data=bbox_loss_, grad_scale=1.0 / cfg.TRAIN.BATCH_ROIS)
+            rcnn_label = label
+
+        # reshape output
+        rcnn_label = mx.sym.Reshape(data=rcnn_label, shape=(cfg.TRAIN.BATCH_IMAGES, -1), name='label_reshape')
+        cls_prob = mx.sym.Reshape(data=cls_prob, shape=(cfg.TRAIN.BATCH_IMAGES, -1, num_classes),
+                                  name='cls_prob_reshape')
+        bbox_loss = mx.sym.Reshape(data=bbox_loss, shape=(cfg.TRAIN.BATCH_IMAGES, -1, 4 * num_reg_classes),
+                                   name='bbox_loss_reshape')
+
+        group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label)])
+        self.sym = group
+        return group
+
     def get_feat_symbol(self, cfg):
         # config alias for convenient
         num_classes = cfg.dataset.NUM_CLASSES
