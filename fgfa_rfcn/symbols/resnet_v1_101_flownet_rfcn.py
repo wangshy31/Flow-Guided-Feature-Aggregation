@@ -901,8 +901,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         conv_feat = self.get_resnet_v1(concat_data)
 
         # pass through FlowNet
-        concat_flow_data_1 = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
-        concat_flow_data_2 = mx.symbol.Concat(data_aft / 255.0, data / 255.0, dim=1)
+        concat_flow_data_1 = mx.symbol.Concat(data_aft / 255.0, data_bef / 255.0, dim=1)
+        concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
         #concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
         concat_flow_data = mx.symbol.Concat(concat_flow_data_1, concat_flow_data_2, dim=0)
         flow = self.get_flownet(concat_flow_data)
@@ -924,13 +924,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #features for data
         mem_bef_cell_warp = mx.sym.BilinearSampler(data=mem_bef_cell, grid=flow_grid_1, name='mem_bef_cell_warp')
         mem_bef_hidden_warp = mx.sym.BilinearSampler(data=mem_bef_hidden, grid=flow_grid_1, name='mem_bef_hidden_warp')
-        mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat[0], mem_bef_cell_warp, mem_bef_hidden_warp)
+        mem_aft_cell, mem_aft_hidden = self.get_lstm_symbol(conv_feat[2], mem_bef_cell_warp, mem_bef_hidden_warp)
         #features for aft
-        mem_data_cell_warp = mx.sym.BilinearSampler(data=mem_data_cell, grid=flow_grid_2, name='mem_data_cell_warp')
-        mem_data_hidden_warp = mx.sym.BilinearSampler(data=mem_data_hidden, grid=flow_grid_2, name='mem_data_hidden_warp')
-        mem_aft_cell, mem_aft_hidden = self.get_lstm_symbol(conv_feat[2], mem_data_cell_warp, mem_data_hidden_warp)
+        mem_aft_cell_warp = mx.sym.BilinearSampler(data=mem_aft_cell, grid=flow_grid_2, name='mem_aft_cell_warp')
+        mem_aft_hidden_warp = mx.sym.BilinearSampler(data=mem_aft_hidden, grid=flow_grid_2, name='mem_aft_hidden_warp')
+        mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat[0], mem_aft_cell_warp, mem_aft_hidden_warp)
 
-        conv_feats = mx.sym.SliceChannel(mem_aft_cell, axis=1, num_outputs=2)
+        conv_feats = mx.sym.SliceChannel(mem_data_cell, axis=1, num_outputs=2)
 
 
         #warp_conv_feat_1 = mx.sym.BilinearSampler(data=conv_feat[1], grid=flow_grid_1, name='warping_feat_1')

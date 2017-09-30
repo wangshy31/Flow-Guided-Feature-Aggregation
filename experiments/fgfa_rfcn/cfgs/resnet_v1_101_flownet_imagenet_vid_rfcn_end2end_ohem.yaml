@@ -56,6 +56,8 @@ dataset:
   motion_iou_path: './lib/dataset/imagenet_vid_groundtruth_motion_iou.mat'
   enable_detailed_eval: true
 TRAIN:
+  MIN_OFFSET: -20
+  MAX_OFFSET: -1
   lr: 0.00025
   lr_step: '1.333'
   warmup: false

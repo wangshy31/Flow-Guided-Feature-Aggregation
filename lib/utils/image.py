@@ -93,7 +93,7 @@ def get_pair_image(roidb, config):
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
     return processed_ims, processed_ref_ims, processed_eq_flags, processed_roidb
-    
+
 def get_triple_image(roidb, config):
     """
     preprocess image and return processed roidb
@@ -119,6 +119,10 @@ def get_triple_image(roidb, config):
             offsets = np.random.choice(config.TRAIN.MAX_OFFSET - config.TRAIN.MIN_OFFSET + 1, 2, replace=False) + config.TRAIN.MIN_OFFSET
             bef_id = min(max(roi_rec['frame_seg_id'] + offsets[0], 0), roi_rec['frame_seg_len']-1)
             aft_id = min(max(roi_rec['frame_seg_id'] + offsets[1], 0), roi_rec['frame_seg_len']-1)
+            if bef_id > aft_id:
+                tmp = bef_id
+                bef_id = aft_id
+                aft_id = tmp
             bef_image = roi_rec['pattern'] % bef_id
             aft_image = roi_rec['pattern'] % aft_id
 
