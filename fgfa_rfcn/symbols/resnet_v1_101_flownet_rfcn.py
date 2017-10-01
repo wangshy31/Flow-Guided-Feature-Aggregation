@@ -866,10 +866,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
     def get_lstm_symbol(self, inputs, states, hidden):
         mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, weight=self.get_param('mem_i2h_weight'),
-                                        bias = self.get_param('mem_i2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
+                                        bias = self.get_param('mem_i2h_bias'), num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
         mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, weight=self.get_param('mem_h2h_weight'),
-                                        bias = self.get_param('mem_h2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
+                                        bias = self.get_param('mem_h2h_bias'), num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
         gates = mem_i2h + mem_h2h
         slice_gates = mx.symbol.SliceChannel(gates, num_outputs=4, name='slice_gates')
