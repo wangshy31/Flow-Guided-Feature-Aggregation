@@ -1963,10 +1963,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         data = mx.sym.Variable(name="data")
         data_bef = mx.sym.Variable(name="data_bef")
-        #max_mem_block2 = mx.sym.Variable(name="max_mem_block2")
-        #max_mem_block3 = mx.sym.Variable(name="max_mem_block3")
-        #max_mem_block4 = mx.sym.Variable(name="max_mem_block4")
-        max_mem_block5 = mx.sym.Variable(name="max_mem_block5")
+        max_mem5 = mx.sym.Variable(name="max_mem5")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -1974,21 +1971,18 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pre_filename = mx.symbol.Variable(name ="pre_filename")
         pattern = mx.symbol.Variable(name='data_pattern')
         # pass through FlowNet
+        conv_feat = self.get_resnet_v1(data)
+        condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
+        mem_block5 = mx.symbol.Crop(*[max_mem5, conv_feat], name='mem_block5')
+        m5 = mx.symbol.where(condition=condition.__eq__(3), x = mem_block5, y = mx.symbol.zeros_like(conv_feat), name='m5')
+
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
-        #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
-        condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
-
-        pool1 = self.get_memory_resnet_v1_stage1(data)
-        res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
-        res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
-        res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
-        #block2_aft_mem, mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, max_mem_block2, pool1, condition)
-        #block3_aft_mem, mem_block3_tmp_relu = self.get_memory_resnet_v1_stage3(data, flow, max_mem_block3, block2_aft_mem, mem_block2_tmp_relu, condition)
-        #block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(data, flow, max_mem_block4, block3_aft_mem, mem_block3_tmp_relu, condition)
-        #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(data, flow, max_mem_block5, block4_aft_mem, mem_block4_tmp_relu, condition)
-        conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
+        flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
+        mem_warp = mx.sym.BilinearSampler(data=m5, grid=flow_grid, name='mem_warp')
+        mem_data_tmp = mem_warp + conv_feat
+        mem_data = mem_data_tmp/2
+        conv_feats = mx.sym.SliceChannel(mem_data, axis=1, num_outputs=2)
 
         ##############################################
         # RPN
@@ -2058,7 +2052,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(conv_feat)])
+                              mx.sym.BlockGrad(mem_data)])
 
         self.sym = group
         return group
