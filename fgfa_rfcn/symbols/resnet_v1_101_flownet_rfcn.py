@@ -934,10 +934,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_aft_hidden_warp = mx.sym.BilinearSampler(data=mem_aft_hidden, grid=flow_grid_2, name='mem_aft_hidden_warp')
         mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat[0], mem_aft_cell_warp, mem_aft_hidden_warp)
 
-        mem_add_data = mem_data_cell + conv_feat[0]]
+        mem_add_data = mem_data_cell + conv_feat[0]
         mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_add_data, num_filter=2048, pad=(0, 0),
                                         kernel=(1, 1), stride=(1, 1), no_bias=False)
-        mem_ReLU2 = mx.symbol.Activation(name='mem_ReLU2', data=mem_conv3, act_type='relu')
+        mem_ReLU2 = mx.symbol.Activation(name='mem_ReLU2', data=mem_conv2, act_type='relu')
         feat_conv_3x3 = mx.sym.Convolution(
             data=mem_ReLU2, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
