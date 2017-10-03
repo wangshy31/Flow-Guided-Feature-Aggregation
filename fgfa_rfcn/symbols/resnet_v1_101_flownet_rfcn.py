@@ -27,6 +27,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.workspace = 512
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
+        self.rnn_params = {}
+    def get_param(self, name):
+        if name not in self.rnn_params:
+            self.rnn_params[name] = mx.symbol.Variable(name)
+        return self.rnn_params[name]
 
 
     def get_resnet_v1(self, data):
@@ -1788,6 +1793,23 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         return Convolution5 * 2.5
 
+    def get_lstm_symbol(self, inputs, states, hidden):
+        mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, weight=self.get_param('mem_i2h_weight'),
+                                        bias = self.get_param('mem_i2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
+                                        stride=(1, 1), no_bias=False)
+        mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, weight=self.get_param('mem_h2h_weight'),
+                                        bias = self.get_param('mem_h2h_bias'), num_filter=1024*4, pad=(1, 1), kernel=(3, 3),
+                                        stride=(1, 1), no_bias=False)
+        gates = mem_i2h + mem_h2h
+        slice_gates = mx.symbol.SliceChannel(gates, num_outputs=4, name='slice_gates')
+        in_gate = mx.symbol.Activation(slice_gates[0], act_type="sigmoid", name='in_gate')
+        forget_gate = mx.symbol.Activation(slice_gates[1], act_type="sigmoid", name = 'forget_gate')
+        in_transform = mx.symbol.Activation(slice_gates[2], act_type="tanh", name='in_transform')
+        out_gate = mx.symbol.Activation(slice_gates[3], act_type="sigmoid", name='out_gate')
+        next_c = forget_gate * states + in_gate * in_transform
+        next_h = out_gate * mx.symbol.Activation(next_c, act_type="tanh")
+        return next_c, next_h
+
     def get_train_symbol(self, cfg):
         # config alias for convenient
         num_classes = cfg.dataset.NUM_CLASSES
@@ -1963,7 +1985,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         data = mx.sym.Variable(name="data")
         data_bef = mx.sym.Variable(name="data_bef")
-        max_mem5 = mx.sym.Variable(name="max_mem5")
+        max_cell = mx.sym.Variable(name="max_cell")
+        max_hidden = mx.sym.Variable(name="max_hidden")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -1972,17 +1995,22 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pattern = mx.symbol.Variable(name='data_pattern')
         # pass through FlowNet
         conv_feat = self.get_resnet_v1(data)
+        m_cell_tmp = mx.symbol.Crop(*[max_cell, conv_feat], name='m_cell_tmp')
+        m_hidden_tmp = mx.symbol.Crop(*[max_hidden, conv_feat], name='m_hidden_tmp')
         condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
-        mem_block5 = mx.symbol.Crop(*[max_mem5, conv_feat], name='mem_block5')
-        m5 = mx.symbol.where(condition=condition.__eq__(3), x = mem_block5, y = mx.symbol.zeros_like(conv_feat), name='m5')
+        mem_clean = mx.symbol.zeros_like(conv_feat, name='mem_clean')
+        m_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell_tmp,
+                                 y = mem_clean, name='m_cell')
+        m_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden_tmp,
+                                   y = mem_clean, name='m_hidden')
 
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
         flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
-        mem_warp = mx.sym.BilinearSampler(data=m5, grid=flow_grid, name='mem_warp')
-        mem_data_tmp = mem_warp + conv_feat
-        mem_data = mem_data_tmp/2
-        conv_feats = mx.sym.SliceChannel(mem_data, axis=1, num_outputs=2)
+        mem_warp_cell = mx.sym.BilinearSampler(data=m_cell, grid=flow_grid, name='mem_warp_cell')
+        mem_warp_hidden = mx.sym.BilinearSampler(data=m_hidden, grid=flow_grid, name='mem_warp_hidden')
+        mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat, mem_warp_cell, mem_warp_hidden)
+        conv_feats = mx.sym.SliceChannel(mem_data_cell, axis=1, num_outputs=2)
 
         ##############################################
         # RPN
@@ -2052,7 +2080,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_data)])
+                              mx.sym.BlockGrad(mem_data_cell), mx.sym.BlockGrad(mem_data_hidden)])
 
         self.sym = group
         return group
@@ -2176,6 +2204,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
+
+        arg_params['mem_i2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_i2h_weight'])
+        arg_params['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
+        arg_params['mem_h2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_h2h_weight'])
+        arg_params['mem_h2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_h2h_bias'])
 
         #arg_params['mem_block2_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block2_data_weight'])
         #arg_params['mem_block2_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block2_data_bias'])
