@@ -2309,13 +2309,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #arg_params['mem_block4_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block4_tmp_weight'])
         #arg_params['mem_block4_tmp_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block4_tmp_bias'])
 
-        arg_params['mem_block5_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_data_weight'])
+        #arg_params['mem_block5_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_data_weight'])
         #arg_params['mem_block5_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_data_bias'])
         #arg_params['mem_block5_bottom_mem_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_bottom_mem_weight'])
         #arg_params['mem_block5_bottom_mem_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_bottom_mem_bias'])
         arg_params['mem_block5_t_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_t_weight'])
         #arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
         #arg_params['mem_block5_tmp_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_tmp_bias'])
+        arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
 
 
 
