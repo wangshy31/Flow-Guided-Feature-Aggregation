@@ -414,6 +414,8 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
     #tmp_mem_block4 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
     tmp_mem_cell = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
     tmp_mem_hidden = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
+    tmp_mem_cell2 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
+    tmp_mem_hidden2 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
     for im_info, key_frame_flag, data_batch in test_data:
         t1 = time.time() - t
         t = time.time()
@@ -426,13 +428,15 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
         #fp = pre_filename_pre.asnumpy()[0]
         #misc.toimage(tmp_mem_block4[0][0].asnumpy()).save('images/mem_block4_'+str(fp)+'_'+str(f)+'.jpg')
         for index in range(pre_filename.shape[0]):
-            data_batch.data[index][8] = pre_filename[index]
-            data_batch.data[index][9] = pre_filename_pre[index]
+            data_batch.data[index][10] = pre_filename[index]
+            data_batch.data[index][11] = pre_filename_pre[index]
             #mx.nd.expand_dims(tmp_mem_block2[index], axis=0).copyto(data_batch.data[index][3])
             #mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][4])
             #mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][3])
             mx.nd.expand_dims(tmp_mem_cell[index], axis=0).copyto(data_batch.data[index][4])
             mx.nd.expand_dims(tmp_mem_hidden[index], axis=0).copyto(data_batch.data[index][5])
+            mx.nd.expand_dims(tmp_mem_cell2[index], axis=0).copyto(data_batch.data[index][6])
+            mx.nd.expand_dims(tmp_mem_hidden2[index], axis=0).copyto(data_batch.data[index][7])
 
         pred_result, output = im_detect(feat_predictors, data_batch, data_names, scales, cfg)
 
@@ -480,8 +484,18 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
             shape3 = output[index]['blockgrad1_output'].shape[3]
             tmp_mem_hidden[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad1_output']
 
-            pre_filename[index] = data_batch.data[index][6]
-            pre_filename_pre[index] = data_batch.data[index][7]
+            shape2 = output[index]['blockgrad2_output'].shape[2]
+            shape3 = output[index]['blockgrad2_output'].shape[3]
+            tmp_mem_cell2[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad2_output']
+            shape2 = output[index]['blockgrad3_output'].shape[2]
+            shape3 = output[index]['blockgrad3_output'].shape[3]
+            tmp_mem_hidden2[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad3_output']
+
+
+            pre_filename[index] = data_batch.data[index][8]
+            pre_filename_pre[index] = data_batch.data[index][9]
+        #if int(gpu_id)==1:
+            #print output[0]['blockgrad4_output'].asnumpy(), output[0]['blockgrad5_output'].asnumpy()
 
     with open(det_file, 'wb') as f:
         cPickle.dump((all_boxes, frame_ids), f, protocol=cPickle.HIGHEST_PROTOCOL)

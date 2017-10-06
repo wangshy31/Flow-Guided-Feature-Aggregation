@@ -1987,6 +1987,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         data_bef = mx.sym.Variable(name="data_bef")
         max_cell = mx.sym.Variable(name="max_cell")
         max_hidden = mx.sym.Variable(name="max_hidden")
+        max_cell2 = mx.sym.Variable(name="max_cell2")
+        max_hidden2 = mx.sym.Variable(name="max_hidden2")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -1994,22 +1996,43 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pre_filename = mx.symbol.Variable(name ="pre_filename")
         pattern = mx.symbol.Variable(name='data_pattern')
         # pass through FlowNet
+        #for this frame
         conv_feat = self.get_resnet_v1(data)
         m_cell_tmp = mx.symbol.Crop(*[max_cell, conv_feat], name='m_cell_tmp')
         m_hidden_tmp = mx.symbol.Crop(*[max_hidden, conv_feat], name='m_hidden_tmp')
-        condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
         mem_clean = mx.symbol.zeros_like(conv_feat, name='mem_clean')
+        condition = filename_pre.__eq__(pre_filename_pre)+ filename.__le__(pre_filename+10000)+pattern.__eq__(1)
         m_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell_tmp,
                                  y = mem_clean, name='m_cell')
         m_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden_tmp,
                                    y = mem_clean, name='m_hidden')
 
+
+        # for next frame
+        m_cell_tmp2 = mx.symbol.Crop(*[max_cell2, conv_feat], name='m_cell_tmp2')
+        m_hidden_tmp2 = mx.symbol.Crop(*[max_hidden2, conv_feat], name='m_hidden_tmp2')
+        condition = filename_pre.__eq__(pre_filename_pre)+ filename.__le__(pre_filename+10000)+pattern.__eq__(1)
+        m_cell2 = mx.symbol.where(condition=condition.__eq__(3), x = m_cell_tmp2,
+                                 y = mem_clean, name='m_cell2')
+        m_hidden2 = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden_tmp2,
+                                   y = mem_clean, name='m_hidden2')
+
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
         flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
+
         mem_warp_cell = mx.sym.BilinearSampler(data=m_cell, grid=flow_grid, name='mem_warp_cell')
         mem_warp_hidden = mx.sym.BilinearSampler(data=m_hidden, grid=flow_grid, name='mem_warp_hidden')
+        mem_warp_cell2 = mx.sym.BilinearSampler(data=m_cell2, grid=flow_grid, name='mem_warp_cell2')
+        mem_warp_hidden2 = mx.sym.BilinearSampler(data=m_hidden2, grid=flow_grid, name='mem_warp_hidden2')
         mem_data_cell, mem_data_hidden = self.get_lstm_symbol(conv_feat, mem_warp_cell, mem_warp_hidden)
+        mem_data_cell2, mem_data_hidden2 = self.get_lstm_symbol(conv_feat, mem_warp_cell2, mem_warp_hidden2)
+
+        m_cell_zero = mx.symbol.zeros_like(conv_feat, name='m_cell_zero')
+        m_hidden_zero = mx.symbol.zeros_like(conv_feat, name='m_hidden_zero')
+        m_cell_zero_warp = mx.sym.BilinearSampler(data=m_cell_zero, grid=flow_grid, name='m_warp_zero_warp')
+        m_hidden_zero_warp = mx.sym.BilinearSampler(data=m_hidden_zero, grid=flow_grid, name='m_warp_zero_warp')
+        mem_cell_zero_tmp, mem_hidden_zero_tmp = self.get_lstm_symbol(conv_feat, m_cell_zero_warp, m_hidden_zero_warp)
         conv_feats = mx.sym.SliceChannel(mem_data_cell, axis=1, num_outputs=2)
 
         ##############################################
@@ -2080,7 +2103,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_data_cell), mx.sym.BlockGrad(mem_data_hidden)])
+                              mx.sym.BlockGrad(mem_data_cell2), mx.sym.BlockGrad(mem_data_hidden2), \
+                              mx.sym.BlockGrad(mem_cell_zero_tmp), mx.sym.BlockGrad(mem_hidden_zero_tmp),\
+                              mx.sym.BlockGrad(condition), mx.sym.BlockGrad(filename_pre)])
 
         self.sym = group
         return group
