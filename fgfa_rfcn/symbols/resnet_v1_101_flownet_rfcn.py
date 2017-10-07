@@ -1989,6 +1989,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         max_hidden = mx.sym.Variable(name="max_hidden")
         max_cell2 = mx.sym.Variable(name="max_cell2")
         max_hidden2 = mx.sym.Variable(name="max_hidden2")
+        max_cell3 = mx.sym.Variable(name="max_cell3")
+        max_hidden3 = mx.sym.Variable(name="max_hidden3")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -2015,11 +2017,18 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # for next frame
         m_cell_tmp2 = mx.symbol.Crop(*[max_cell2, mem_ReLU1], name='m_cell_tmp2')
         m_hidden_tmp2 = mx.symbol.Crop(*[max_hidden2, mem_ReLU1], name='m_hidden_tmp2')
-        condition = filename_pre.__eq__(pre_filename_pre)+ filename.__le__(pre_filename+10000)+pattern.__eq__(1)
         m_cell2 = mx.symbol.where(condition=condition.__eq__(3), x = m_cell_tmp2,
                                  y = mem_clean, name='m_cell2')
         m_hidden2 = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden_tmp2,
                                    y = mem_clean, name='m_hidden2')
+
+
+        m_cell_tmp3 = mx.symbol.Crop(*[max_cell3, mem_ReLU1], name='m_cell_tmp3')
+        m_hidden_tmp3 = mx.symbol.Crop(*[max_hidden3, mem_ReLU1], name='m_hidden_tmp3')
+        m_cell3 = mx.symbol.where(condition=condition.__eq__(3), x = m_cell_tmp3,
+                                 y = mem_clean, name='m_cell3')
+        m_hidden3 = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden_tmp3,
+                                   y = mem_clean, name='m_hidden3')
 
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
@@ -2029,8 +2038,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_warp_hidden = mx.sym.BilinearSampler(data=m_hidden, grid=flow_grid, name='mem_warp_hidden')
         mem_warp_cell2 = mx.sym.BilinearSampler(data=m_cell2, grid=flow_grid, name='mem_warp_cell2')
         mem_warp_hidden2 = mx.sym.BilinearSampler(data=m_hidden2, grid=flow_grid, name='mem_warp_hidden2')
+        mem_warp_cell3 = mx.sym.BilinearSampler(data=m_cell3, grid=flow_grid, name='mem_warp_cell3')
+        mem_warp_hidden3 = mx.sym.BilinearSampler(data=m_hidden3, grid=flow_grid, name='mem_warp_hidden3')
         mem_data_cell, mem_data_hidden = self.get_lstm_symbol(mem_ReLU1, mem_warp_cell, mem_warp_hidden)
         mem_data_cell2, mem_data_hidden2 = self.get_lstm_symbol(mem_ReLU1, mem_warp_cell2, mem_warp_hidden2)
+        mem_data_cell3, mem_data_hidden3 = self.get_lstm_symbol(mem_ReLU1, mem_warp_cell3, mem_warp_hidden3)
 
         m_cell_zero = mx.symbol.zeros_like(mem_ReLU1, name='m_cell_zero')
         m_hidden_zero = mx.symbol.zeros_like(mem_ReLU1, name='m_hidden_zero')
@@ -2116,8 +2128,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
                               mx.sym.BlockGrad(mem_data_cell2), mx.sym.BlockGrad(mem_data_hidden2), \
-                              mx.sym.BlockGrad(mem_cell_zero_tmp), mx.sym.BlockGrad(mem_hidden_zero_tmp),\
-                              mx.sym.BlockGrad(condition), mx.sym.BlockGrad(filename_pre)])
+                              mx.sym.BlockGrad(mem_data_cell3), mx.sym.BlockGrad(mem_data_hidden3), \
+                              mx.sym.BlockGrad(mem_cell_zero_tmp), mx.sym.BlockGrad(mem_hidden_zero_tmp)])
 
         self.sym = group
         return group

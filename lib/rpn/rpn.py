@@ -37,6 +37,8 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
             'max_hidden': np.zeros((1, 512, 94, 94), dtype=np.float32),
             'max_cell2': np.zeros((1, 512, 94, 94), dtype=np.float32),
             'max_hidden2': np.zeros((1, 512, 94, 94), dtype=np.float32),
+            'max_cell3': np.zeros((1, 512, 94, 94), dtype=np.float32),
+            'max_hidden3': np.zeros((1, 512, 94, 94), dtype=np.float32),
             'filename_pre': np.array([cur_roidb_index[i]]),
             'filename': np.array([cur_frameid[i]]),
             'pre_filename_pre': np.array([cur_roidb_index[i]]),

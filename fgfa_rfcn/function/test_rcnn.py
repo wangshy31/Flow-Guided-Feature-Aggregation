@@ -44,7 +44,9 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
                        ('max_cell', (1, 512, 94, 94)),
                        ('max_hidden', (1, 512, 94, 94)),
                        ('max_cell2', (1, 512, 94, 94)),
-                       ('max_hidden2', (1, 512, 94, 94))
+                       ('max_hidden2', (1, 512, 94, 94)),
+                       ('max_cell3', (1, 512, 94, 94)),
+                       ('max_hidden3', (1, 512, 94, 94))
                        ]]
 
     # create predictor
