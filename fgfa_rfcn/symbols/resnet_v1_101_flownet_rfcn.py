@@ -1666,6 +1666,107 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         return feat_conv_3x3_relu, mem_block5_tmp_relu
 
+    def get_lstm_symbol(self, inputs, states, hidden):
+        mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
+                                             stride=(1, 1), no_bias=False)
+        mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
+                                             stride=(1, 1), no_bias=False)
+        gates = mem_i2h + mem_h2h
+        slice_gates = mx.symbol.SliceChannel(gates, num_outputs=4, name='slice_gates')
+        in_gate = mx.symbol.Activation(slice_gates[0], act_type="sigmoid", name='in_gate')
+        forget_gate = mx.symbol.Activation(slice_gates[1], act_type="sigmoid", name = 'forget_gate')
+        in_transform = mx.symbol.Activation(slice_gates[2], act_type="tanh", name='in_transform')
+        out_gate = mx.symbol.Activation(slice_gates[3], act_type="sigmoid", name='out_gate')
+        next_c = forget_gate * states + in_gate * in_transform
+        next_h = out_gate * mx.symbol.Activation(next_c, act_type="tanh")
+        return next_c, next_h
+
+    def get_lstm_resnet_v1_stage5(self, flow_data, max_mem_cell, max_mem_hidden, res4b22_relu, condition):
+        res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=res4b22_relu, num_filter=2048, pad=(0, 0),
+                                              kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5a_branch1 = mx.symbol.BatchNorm(name='bn5a_branch1', data=res5a_branch1,
+                                           use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5a_branch1 = bn5a_branch1
+        res5a_branch2a = mx.symbol.Convolution(name='res5a_branch2a', data=res4b22_relu, num_filter=512, pad=(0, 0),
+                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5a_branch2a = mx.symbol.BatchNorm(name='bn5a_branch2a', data=res5a_branch2a,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5a_branch2a = bn5a_branch2a
+        res5a_branch2a_relu = mx.symbol.Activation(name='res5a_branch2a_relu', data=scale5a_branch2a, act_type='relu')
+        res5a_branch2b = mx.symbol.Convolution(name='res5a_branch2b', data=res5a_branch2a_relu, num_filter=512,
+                                               pad=(2, 2), dilate=(2, 2), kernel=(3, 3), stride=(1, 1), no_bias=True)
+        bn5a_branch2b = mx.symbol.BatchNorm(name='bn5a_branch2b', data=res5a_branch2b,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5a_branch2b = bn5a_branch2b
+        res5a_branch2b_relu = mx.symbol.Activation(name='res5a_branch2b_relu', data=scale5a_branch2b, act_type='relu')
+        res5a_branch2c = mx.symbol.Convolution(name='res5a_branch2c', data=res5a_branch2b_relu, num_filter=2048,
+                                               pad=(0, 0), kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5a_branch2c = mx.symbol.BatchNorm(name='bn5a_branch2c', data=res5a_branch2c,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5a_branch2c = bn5a_branch2c
+        res5a = mx.symbol.broadcast_add(name='res5a', *[scale5a_branch1, scale5a_branch2c])
+        res5a_relu = mx.symbol.Activation(name='res5a_relu', data=res5a, act_type='relu')
+        res5b_branch2a = mx.symbol.Convolution(name='res5b_branch2a', data=res5a_relu, num_filter=512, pad=(0, 0),
+                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5b_branch2a = mx.symbol.BatchNorm(name='bn5b_branch2a', data=res5b_branch2a,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5b_branch2a = bn5b_branch2a
+        res5b_branch2a_relu = mx.symbol.Activation(name='res5b_branch2a_relu', data=scale5b_branch2a, act_type='relu')
+        res5b_branch2b = mx.symbol.Convolution(name='res5b_branch2b', data=res5b_branch2a_relu, num_filter=512,
+                                               pad=(2, 2), dilate=(2, 2), kernel=(3, 3), stride=(1, 1), no_bias=True)
+        bn5b_branch2b = mx.symbol.BatchNorm(name='bn5b_branch2b', data=res5b_branch2b,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5b_branch2b = bn5b_branch2b
+        res5b_branch2b_relu = mx.symbol.Activation(name='res5b_branch2b_relu', data=scale5b_branch2b, act_type='relu')
+        res5b_branch2c = mx.symbol.Convolution(name='res5b_branch2c', data=res5b_branch2b_relu, num_filter=2048,
+                                               pad=(0, 0), kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5b_branch2c = mx.symbol.BatchNorm(name='bn5b_branch2c', data=res5b_branch2c,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5b_branch2c = bn5b_branch2c
+        res5b = mx.symbol.broadcast_add(name='res5b', *[res5a_relu, scale5b_branch2c])
+        res5b_relu = mx.symbol.Activation(name='res5b_relu', data=res5b, act_type='relu')
+        res5c_branch2a = mx.symbol.Convolution(name='res5c_branch2a', data=res5b_relu, num_filter=512, pad=(0, 0),
+                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5c_branch2a = mx.symbol.BatchNorm(name='bn5c_branch2a', data=res5c_branch2a,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5c_branch2a = bn5c_branch2a
+        res5c_branch2a_relu = mx.symbol.Activation(name='res5c_branch2a_relu', data=scale5c_branch2a, act_type='relu')
+        res5c_branch2b = mx.symbol.Convolution(name='res5c_branch2b', data=res5c_branch2a_relu, num_filter=512,
+                                               pad=(2, 2), dilate=(2, 2), kernel=(3, 3), stride=(1, 1), no_bias=True)
+        bn5c_branch2b = mx.symbol.BatchNorm(name='bn5c_branch2b', data=res5c_branch2b,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5c_branch2b = bn5c_branch2b
+        res5c_branch2b_relu = mx.symbol.Activation(name='res5c_branch2b_relu', data=scale5c_branch2b, act_type='relu')
+        res5c_branch2c = mx.symbol.Convolution(name='res5c_branch2c', data=res5c_branch2b_relu, num_filter=2048,
+                                               pad=(0, 0), kernel=(1, 1), stride=(1, 1), no_bias=True)
+        bn5c_branch2c = mx.symbol.BatchNorm(name='bn5c_branch2c', data=res5c_branch2c,
+                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
+        scale5c_branch2c = bn5c_branch2c
+        res5c = mx.symbol.broadcast_add(name='res5c', *[res5b_relu, scale5c_branch2c])
+        res5c_relu = mx.symbol.Activation(name='res5c_relu', data=res5c, act_type='relu')
+        ####memory_block5####
+        #stream3: from t-1
+        m_cell = mx.symbol.Crop(*[max_mem_cell, res5c_relu], name='m_cell')
+        m_hidden = mx.symbol.Crop(*[max_mem_hidden, res5c_relu], name='m_hidden')
+        mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mx.symbol.zeros_like(res5c_relu), name='mem_cell')
+        mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mx.symbol.zeros_like(res5c_relu), name='mem_hidden')
+        mem_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_flow_grid')
+        mem_cell_warp = mx.sym.BilinearSampler(data=mem_cell, grid=mem_flow_grid, name='mem_cell_warp')
+        mem_hidden_warp = mx.sym.BilinearSampler(data=mem_hidden, grid=mem_flow_grid, name='mem_hidden_warp')
+
+        mem_new_cell, mem_new_hidden = self.get_lstm_symbol(res5c_relu, mem_cell_warp, mem_hidden_warp)
+        mem_after = mem_new_cell + res5c_relu
+
+
+
+
+        feat_conv_3x3 = mx.sym.Convolution(
+            data=mem_after, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
+        feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
+
+
+        return feat_conv_3x3_relu, mem_new_cell, mem_new_hidden
+
     def get_concatmemory_resnet_v1_stage5(self, flow_data, max_mem_block5, res4b22_relu, condition):
         res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=res4b22_relu, num_filter=2048, pad=(0, 0),
                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
@@ -2282,6 +2383,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
+        arg_params['mem_i2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_i2h_weight'])
+        arg_params['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
+        arg_params['mem_h2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_h2h_weight'])
+        arg_params['mem_h2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_h2h_bias'])
 
         #arg_params['mem_block2_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block2_data_weight'])
         #arg_params['mem_block2_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block2_data_bias'])
@@ -2313,10 +2418,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #arg_params['mem_block5_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_data_bias'])
         #arg_params['mem_block5_bottom_mem_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_bottom_mem_weight'])
         #arg_params['mem_block5_bottom_mem_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_bottom_mem_bias'])
-        arg_params['mem_block5_t_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_t_weight'])
+        #arg_params['mem_block5_t_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_t_weight'])
         #arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
         #arg_params['mem_block5_tmp_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_tmp_bias'])
-        arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
+        #arg_params['mem_block5_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_tmp_weight'])
 
 
 
@@ -2395,11 +2500,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         data = mx.sym.Variable(name="data")
         data_bef = mx.sym.Variable(name="data_bef")
-        #data_aft = mx.sym.Variable(name="data_aft")
-        #max_mem_block2 = mx.sym.Variable(name="max_mem_block2")
-        #max_mem_block3 = mx.sym.Variable(name="max_mem_block3")
-        #max_mem_block4 = mx.sym.Variable(name="max_mem_block4")
-        max_mem_block5 = mx.sym.Variable(name="max_mem_block5")
+        max_mem_cell = mx.sym.Variable(name="max_mem_cell")
+        max_mem_hidden = mx.sym.Variable(name="max_mem_hidden")
         im_info = mx.sym.Variable(name="im_info")
         gt_boxes = mx.sym.Variable(name="gt_boxes")
         rpn_label = mx.sym.Variable(name='label')
@@ -2416,24 +2518,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
-        #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
         condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
         # pass through ResNet
         pool1 = self.get_memory_resnet_v1_stage1(data)
-#        block2_aft_mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, max_mem_block2, pool1, condition)
-        #block3_aft_mem, mem_block3_tmp_relu = self.get_memory_resnet_v1_stage3(data, flow, max_mem_block3, block2_aft_mem, mem_block2_tmp_relu, condition)
-        #block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(data, flow, max_mem_block4, block3_aft_mem, mem_block3_tmp_relu, condition)
-        #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(data, flow, max_mem_block5, block4_aft_mem, mem_block4_tmp_relu, condition)
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat, mem_block5_tmp_relu = self.get_concatmemory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
-        #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
+        conv_feat, mem_new_cell, mem_new_hidden = self.get_lstm_resnet_v1_stage5(flow, max_mem_cell, max_mem_hidden, res4b22_relu, condition)
 
-        #res4b22_relu, res5c_relu = self.get_memory_resnet_v1_bottom(data)
-        #mem_block5 = mx.symbol.Crop(*[self.max_mem_block5, res5c_relu], name='mem_block5')
-        #conv_feat, tmp = self.get_memory_resnet_v1_top(res4b22_relu, res5c_relu, flow, filename, filename_pre, mem_block5)
-        #self.max_mem_block5 = tmp
 
         conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
 
@@ -2547,7 +2639,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(rcnn_label), \
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_block5_tmp_relu)])
+                              mx.sym.BlockGrad(mem_new_cell), mx.sym.BlockGrad(mem_new_hidden)])
                               #condition, pre_filename, pre_filename_pre])
         self.sym = group
         return group
