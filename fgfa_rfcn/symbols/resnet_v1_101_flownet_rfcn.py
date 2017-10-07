@@ -2038,8 +2038,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         m_hidden_zero_warp = mx.sym.BilinearSampler(data=m_hidden_zero, grid=flow_grid, name='m_warp_zero_warp')
         mem_cell_zero_tmp, mem_hidden_zero_tmp = self.get_lstm_symbol(mem_ReLU1, m_cell_zero_warp, m_hidden_zero_warp)
 
-        mem_add_data = mem_data_cell + mem_ReLU1
-        mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_add_data, num_filter=2048, pad=(0, 0),
+        #mem_add_data = mem_data_cell + mem_ReLU1
+        mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_data_cell, num_filter=2048, pad=(0, 0),
                                           kernel=(1, 1), stride=(1, 1), no_bias=False)
         mem_ReLU2 = mx.symbol.Activation(name='mem_ReLU2', data=mem_conv2, act_type='relu')
         feat_conv_3x3 = mx.sym.Convolution(
