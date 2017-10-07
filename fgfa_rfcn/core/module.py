@@ -986,6 +986,7 @@ class MutableModule(BaseModule):
                     shape3 = self.get_outputs(merge_multi_context = False)[5][index].shape[3]
                     tmp_mem_block5[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[5][index]
 
+                #print self.get_outputs(merge_multi_context = False)[6][0].asnumpy()
 
 
                 for index in range(pre_filename.shape[0]):
