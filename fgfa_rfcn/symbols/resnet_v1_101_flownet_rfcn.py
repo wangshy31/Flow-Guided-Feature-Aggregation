@@ -2042,8 +2042,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_data_cell, num_filter=2048, pad=(0, 0),
                                           kernel=(1, 1), stride=(1, 1), no_bias=False)
         mem_ReLU2 = mx.symbol.Activation(name='mem_ReLU2', data=mem_conv2, act_type='relu')
+
+        mem_concat_data = mx.symbol.Concat(*[mem_ReLU2, mem_ReLU1], dim=1)
+        mem_conv3 = mx.symbol.Convolution(name='mem_conv3', data=mem_concat_data, num_filter=2048, pad=(0, 0),
+                                          kernel=(1, 1), stride=(1, 1), no_bias=False)
+        mem_ReLU3 = mx.symbol.Activation(name='mem_ReLU3', data=mem_conv3, act_type='relu')
         feat_conv_3x3 = mx.sym.Convolution(
-            data=mem_ReLU2, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
+            data=mem_ReLU3, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
         conv_feats = mx.sym.SliceChannel(feat_conv_3x3_relu, axis=1, num_outputs=2)
 
@@ -2246,6 +2251,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         arg_params['mem_conv1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_conv1_bias'])
         arg_params['mem_conv2_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_conv2_weight'])
         arg_params['mem_conv2_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_conv2_bias'])
+        arg_params['mem_conv3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_conv3_weight'])
+        arg_params['mem_conv3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_conv3_bias'])
 
         arg_params['mem_i2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_i2h_weight'])
         arg_params['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
