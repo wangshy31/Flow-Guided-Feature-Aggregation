@@ -1964,6 +1964,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         data = mx.sym.Variable(name="data")
         data_bef = mx.sym.Variable(name="data_bef")
         max_mem5 = mx.sym.Variable(name="max_mem5")
+        max_mem5_2 = mx.sym.Variable(name="max_mem5_2")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -1976,14 +1977,23 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_block5 = mx.symbol.Crop(*[max_mem5, conv_feat], name='mem_block5')
         m5 = mx.symbol.where(condition=condition.__eq__(3), x = mem_block5, y = mx.symbol.zeros_like(conv_feat), name='m5')
 
+        mem_block5_2 = mx.symbol.Crop(*[max_mem5_2, conv_feat], name='mem_block5_2')
+        m5_2 = mx.symbol.where(condition=condition.__eq__(3), x = mem_block5_2, y = mx.symbol.zeros_like(conv_feat), name='m5_2')
+
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         flow = self.get_flownet(concat_flow_data)
         flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
+
         mem_warp = mx.sym.BilinearSampler(data=m5, grid=flow_grid, name='mem_warp')
         mem_data_tmp = mem_warp + conv_feat
         mem_data = mem_data_tmp/2
         conv_feats = mx.sym.SliceChannel(mem_data, axis=1, num_outputs=2)
 
+        mem_warp_2 = mx.sym.BilinearSampler(data=m5_2, grid=flow_grid, name='mem_warp_2')
+        mem_data_tmp_2 = mem_warp_2 + conv_feat
+        mem_data_2 = mem_data_tmp_2/2
+
+        mem_zero_data = conv_feat/2
         ##############################################
         # RPN
         rpn_feat = conv_feats[0]
@@ -2052,7 +2062,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_data)])
+                              mx.sym.BlockGrad(mem_data_2), mx.sym.BlockGrad(mem_zero_data)])
 
         self.sym = group
         return group
