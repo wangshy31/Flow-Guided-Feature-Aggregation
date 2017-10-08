@@ -1841,9 +1841,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_block5_warp = mx.sym.BilinearSampler(data=mem_block5_t_relu, grid=mem_block5_flow_grid, name='mem_block5_warp')
 
         attention_weight= mx.sym.SliceChannel(attention_weights, axis=1, num_outputs=2)
-        weight1 = mx.symbol.tile(data=attention_weight[0], reps=(1, 2048, 1, 1))
-        weight2 = mx.symbol.tile(data=attention_weight[1], reps=(1, 2048, 1, 1))
-        block5_aft_mem = mem_block5_warp*weight1 + res5c_relu*weight2
+        #weight1 = mx.symbol.tile(data=attention_weight[0], reps=(1, 2048, 1, 1))
+        #weight2 = mx.symbol.tile(data=attention_weight[1], reps=(1, 2048, 1, 1))
+        block5_aft_mem = mx.symbol.broadcast_mul(mem_block5_warp, attention_weight[0]) +\
+                                mx.symbol.broadcast_mul(res5c_relu, attention_weight[1])
         #block5_aft_mem = block5_aft_mem/2
         ####memory_block5####
 
@@ -1976,7 +1977,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                              stride=(1, 1), no_bias=False)
         attention = mx.symbol.Convolution(name='attention', data=Concat5, num_filter=2, pad=(1, 1), kernel=(3, 3),
                                           stride=(1, 1), no_bias=False)
-        attention_weights = mx.symbol.softmax(data=attention, axis=1)
+        attention_pool = mx.symbol.Pooling(name='attention_pool', data=attention, global_pool=True, kernel=(100, 100),
+                                  pool_type='avg')
+        attention_weights = mx.symbol.softmax(data=attention_pool, axis=1)
 
         return Convolution5 * 2.5, attention_weights
 
