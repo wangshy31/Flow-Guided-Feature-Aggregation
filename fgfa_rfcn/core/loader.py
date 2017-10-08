@@ -34,7 +34,7 @@ class TestLoader(mx.io.DataIter):
         # decide data and label names (only for training)
         #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
         self.data_name = ['data', 'data_bef', 'data_pattern', 'im_info', \
-                          'max_mem_block5', \
+                          'max_mem_block4', 'max_mem_block5', \
                           'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         self.label_name = None
 
@@ -126,7 +126,7 @@ class TestLoader(mx.io.DataIter):
                         'pre_filename': data[0]['pre_filename'],
                         #'max_mem_block2': data[0]['max_mem_block2'],
                         #'max_mem_block3': data[0]['max_mem_block3'],
-                        #'max_mem_block4': data[0]['max_mem_block4'],
+                        'max_mem_block4': data[0]['max_mem_block4'],
                         'max_mem_block5': data[0]['max_mem_block5']
                         }]
         self.data = [[mx.nd.array(extend_data[i][name]) for name in self.data_name] for i in xrange(len(data))]
@@ -157,7 +157,7 @@ class TestLoader(mx.io.DataIter):
                         'pre_filename': data[0]['pre_filename'],
                         #'max_mem_block2': data[0]['max_mem_block2'],
                         #'max_mem_block3': data[0]['max_mem_block3'],
-                        #'max_mem_block4': data[0]['max_mem_block4'],
+                        'max_mem_block4': data[0]['max_mem_block4'],
                         'max_mem_block5': data[0]['max_mem_block5']
                         }]
                         #'data_cache': np.zeros((19, 3, max([v[0] for v in self.cfg.SCALES]), max([v[1] for v in self.cfg.SCALES]))),
@@ -216,7 +216,7 @@ class AnchorLoader(mx.io.DataIter):
         if config.TRAIN.END2END:
             #self.data_name = ['data', 'filename_pre', 'filename', 'data_bef', 'data_aft', 'im_info', 'gt_boxes']
             self.data_name = ['data', 'data_bef', 'data_pattern', 'im_info', 'gt_boxes', \
-                              'max_mem_block5', \
+                              'max_mem_block4', 'max_mem_block5', \
                               'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         else:
             self.data_name = ['data']
