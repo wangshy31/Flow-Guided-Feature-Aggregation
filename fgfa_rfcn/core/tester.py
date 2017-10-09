@@ -411,8 +411,8 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
     pre_filename_pre = mx.nd.zeros((1))
     #tmp_mem_block2 = mx.nd.zeros((1, 256, 282, 282), ctx = mx.gpu())
     #tmp_mem_block3 = mx.nd.zeros((1, 512, 157, 157), ctx = mx.gpu())
-    #tmp_mem_block4 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu())
-    tmp_mem_block5 = mx.nd.zeros((1, 2048, 94, 94), ctx = mx.gpu())
+    tmp_mem_block4 = mx.nd.zeros((1, 1024, 94, 94), ctx = mx.gpu(int(gpu_id)))
+    tmp_mem_block5 = mx.nd.zeros((1, 2048, 94, 94), ctx = mx.gpu(int(gpu_id)))
     for im_info, key_frame_flag, data_batch in test_data:
         t1 = time.time() - t
         t = time.time()
@@ -425,12 +425,12 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
         #fp = pre_filename_pre.asnumpy()[0]
         #misc.toimage(tmp_mem_block4[0][0].asnumpy()).save('images/mem_block4_'+str(fp)+'_'+str(f)+'.jpg')
         for index in range(pre_filename.shape[0]):
-            data_batch.data[index][7] = pre_filename[index]
-            data_batch.data[index][8] = pre_filename_pre[index]
+            data_batch.data[index][8] = pre_filename[index]
+            data_batch.data[index][9] = pre_filename_pre[index]
             #mx.nd.expand_dims(tmp_mem_block2[index], axis=0).copyto(data_batch.data[index][3])
             #mx.nd.expand_dims(tmp_mem_block3[index], axis=0).copyto(data_batch.data[index][4])
-            #mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][3])
-            mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][4])
+            mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][4])
+            mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][5])
 
         pred_result, output = im_detect(feat_predictors, data_batch, data_names, scales, cfg)
 
@@ -447,7 +447,8 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
         data_time += t1
         net_time += t2
         post_time += t3
-        print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
+        if int(idx)%100==0:
+            print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
                                                                              data_time / idx * test_data.batch_size,
                                                                              net_time / idx * test_data.batch_size,
                                                                              post_time / idx * test_data.batch_size)
@@ -472,10 +473,14 @@ def pred_eval(gpu_id, feat_predictors, test_data, imdb, cfg, vis=False, thresh=1
 
             shape2 = output[index]['blockgrad0_output'].shape[2]
             shape3 = output[index]['blockgrad0_output'].shape[3]
-            tmp_mem_block5[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad0_output']
+            tmp_mem_block4[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad0_output']
 
-            pre_filename[index] = data_batch.data[index][5]
-            pre_filename_pre[index] = data_batch.data[index][6]
+            shape2 = output[index]['blockgrad1_output'].shape[2]
+            shape3 = output[index]['blockgrad1_output'].shape[3]
+            tmp_mem_block5[index,:, 0:shape2, 0:shape3] = output[index]['blockgrad1_output']
+
+            pre_filename[index] = data_batch.data[index][6]
+            pre_filename_pre[index] = data_batch.data[index][7]
 
     with open(det_file, 'wb') as f:
         cPickle.dump((all_boxes, frame_ids), f, protocol=cPickle.HIGHEST_PROTOCOL)
