@@ -211,6 +211,7 @@ class AnchorLoader(mx.io.DataIter):
         # infer properties from roidb
         self.size = len(roidb)
         self.index = np.arange(self.size)
+        self.pre_list = np.zeros(len(self.ctx), dtype=np.int32)
 
         # decide data and label names
         if config.TRAIN.END2END:
@@ -371,6 +372,8 @@ class AnchorLoader(mx.io.DataIter):
         cur_from = self.cur
         cur_to = min(cur_from + self.batch_size, self.size)
         roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]
+        pre_roidb_id = [self.roidb[self.index[i]]['frame_seg_id'] for i in self.pre_list]
+        pre_roidb_pattern = [self.roidb[self.index[i]]['pattern'] for i in self.pre_list]
 
         # decide multi device slice
         work_load_list = self.work_load_list
@@ -386,7 +389,9 @@ class AnchorLoader(mx.io.DataIter):
         label_list = []
         for islice in slices:
             iroidb = [roidb[i] for i in range(islice.start, islice.stop)]
-            data, label = get_rpn_triple_batch(iroidb, self.cfg)
+            ipre_roidb_id = [pre_roidb_id[i] for i in range(islice.start, islice.stop)]
+            ipre_roidb_pattern = [pre_roidb_pattern[i] for i in range(islice.start, islice.stop)]
+            data, label = get_rpn_triple_batch(iroidb, self.cfg, ipre_roidb_id, ipre_roidb_pattern)
             data_list.append(data)
             label_list.append(label)
 
@@ -438,6 +443,9 @@ class AnchorLoader(mx.io.DataIter):
 
         #roidb = [self.roidb[self.index[i]] for i in range(cur_from, cur_to)]
         roidb = [self.roidb[self.index[i]] for i in range_list]
+        pre_roidb_id = [self.roidb[self.index[i]]['frame_seg_id'] for i in self.pre_list]
+        pre_roidb_pattern = [self.roidb[self.index[i]]['pattern'] for i in self.pre_list]
+        self.pre_list = range_list
         # decide multi device slice
         work_load_list = self.work_load_list
         ctx = self.ctx
@@ -449,16 +457,18 @@ class AnchorLoader(mx.io.DataIter):
         rst = []
         for idx, islice in enumerate(slices):
             iroidb = [roidb[i] for i in range(islice.start, islice.stop)]
-            rst.append(self.parfetch(iroidb))
+            ipre_roidb_id = [pre_roidb_id[i] for i in range(islice.start, islice.stop)]
+            ipre_roidb_pattern = [pre_roidb_pattern[i] for i in range(islice.start, islice.stop)]
+            rst.append(self.parfetch(iroidb, ipre_roidb_id, ipre_roidb_pattern))
 
         all_data = [_['data'] for _ in rst]
         all_label = [_['label'] for _ in rst]
         self.data = [[mx.nd.array(data[key]) for key in self.data_name] for data in all_data]
         self.label = [[mx.nd.array(label[key]) for key in self.label_name] for label in all_label]
 
-    def parfetch(self, iroidb):
+    def parfetch(self, iroidb, ipre_roidb_id, ipre_roidb_pattern):
         # get testing data for multigpu
-        data, label = get_rpn_triple_batch(iroidb, self.cfg)
+        data, label = get_rpn_triple_batch(iroidb, self.cfg, ipre_roidb_id, ipre_roidb_pattern)
         data_shape = {k: v.shape for k, v in data.items()}
         #data_shape['pre_filename_pre'] = (1,)
         #data_shape['pre_filename'] = (1,)
