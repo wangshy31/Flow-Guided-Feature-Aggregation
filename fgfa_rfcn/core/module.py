@@ -964,8 +964,8 @@ class MutableModule(BaseModule):
         ################################################################################
         pre_filename = mx.nd.zeros((4))
         pre_filename_pre = mx.nd.zeros((4))
-        tmp_mem_block2 = mx.nd.zeros((4, 256, 282, 282), ctx = mx.gpu())
-        tmp_mem_block3 = mx.nd.zeros((4, 512, 157, 157), ctx = mx.gpu())
+        #tmp_mem_block2 = mx.nd.zeros((4, 256, 282, 282), ctx = mx.gpu())
+        #tmp_mem_block3 = mx.nd.zeros((4, 512, 157, 157), ctx = mx.gpu())
         tmp_mem_block4 = mx.nd.zeros((4, 1024, 94, 94), ctx = mx.gpu())
         tmp_mem_block5 = mx.nd.zeros((4, 2048, 94, 94), ctx = mx.gpu())
         for epoch in range(begin_epoch, num_epoch):
