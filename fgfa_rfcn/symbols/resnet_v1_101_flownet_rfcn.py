@@ -1681,7 +1681,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         next_h = out_gate * mx.symbol.Activation(next_c, act_type="tanh")
         return next_c, next_h
 
-    def get_lstm_resnet_v1_stage5(self, flow_data, max_mem_cell, max_mem_hidden, res4b22_relu, condition):
+    def get_lstm_resnet_v1_stage5(self, max_mem_cell, max_mem_hidden, res4b22_relu, condition):
         res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=res4b22_relu, num_filter=2048, pad=(0, 0),
                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
         bn5a_branch1 = mx.symbol.BatchNorm(name='bn5a_branch1', data=res5a_branch1,
@@ -1755,11 +1755,11 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         m_hidden = mx.symbol.Crop(*[max_mem_hidden, mem_ReLU1], name='m_hidden')
         mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_cell')
         mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_hidden')
-        mem_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_flow_grid')
-        mem_cell_warp = mx.sym.BilinearSampler(data=mem_cell, grid=mem_flow_grid, name='mem_cell_warp')
-        mem_hidden_warp = mx.sym.BilinearSampler(data=mem_hidden, grid=mem_flow_grid, name='mem_hidden_warp')
+        #mem_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_flow_grid')
+        #mem_cell_warp = mx.sym.BilinearSampler(data=mem_cell, grid=mem_flow_grid, name='mem_cell_warp')
+        #mem_hidden_warp = mx.sym.BilinearSampler(data=mem_hidden, grid=mem_flow_grid, name='mem_hidden_warp')
 
-        mem_new_cell, mem_new_hidden = self.get_lstm_symbol(mem_ReLU1, mem_cell_warp, mem_hidden_warp)
+        mem_new_cell, mem_new_hidden = self.get_lstm_symbol(mem_ReLU1, mem_cell, mem_hidden)
 
         mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_new_cell, num_filter=2048, pad=(0, 0),
                                         kernel=(1, 1), stride=(1, 1), no_bias=False)
@@ -2512,7 +2512,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
-        data_bef = mx.sym.Variable(name="data_bef")
+        #data_bef = mx.sym.Variable(name="data_bef")
         max_mem_cell = mx.sym.Variable(name="max_mem_cell")
         max_mem_hidden = mx.sym.Variable(name="max_mem_hidden")
         im_info = mx.sym.Variable(name="im_info")
@@ -2529,15 +2529,15 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pattern = mx.symbol.Variable(name='data_pattern')
 
         # pass through FlowNet
-        concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
-        flow = self.get_flownet(concat_flow_data)
+        #concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
+        #flow = self.get_flownet(concat_flow_data)
         condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
         # pass through ResNet
         pool1 = self.get_memory_resnet_v1_stage1(data)
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat, mem_new_cell, mem_new_hidden = self.get_lstm_resnet_v1_stage5(flow, max_mem_cell, max_mem_hidden, res4b22_relu, condition)
+        conv_feat, mem_new_cell, mem_new_hidden = self.get_lstm_resnet_v1_stage5(max_mem_cell, max_mem_hidden, res4b22_relu, condition)
 
 
         conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)

@@ -143,10 +143,10 @@ def get_rpn_triple_batch(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern):
     """
     assert len(roidb) == 1, 'Single batch only'
     #imgs, bef_imgs, aft_imgs, roidb = get_triple_image(roidb, cfg)
-    imgs, filename_pre, filename, bef_imgs, pattern, roidb = get_triple_image(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern)
+    imgs, filename_pre, filename, pattern, roidb = get_triple_image(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern)
 
     im_array = imgs[0]
-    bef_im_array = bef_imgs[0]
+    #bef_im_array = bef_imgs[0]
     #aft_im_array = aft_imgs[0]
 
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
@@ -170,7 +170,7 @@ def get_rpn_triple_batch(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern):
             'filename': np.array(filename),
             'pre_filename_pre': np.array(filename_pre),
             'pre_filename': np.array(filename),
-            'data_bef': bef_im_array,
+            #'data_bef': bef_im_array,
             'data_pattern': np.array(pattern),
             'im_info': im_info}
     label = {'gt_boxes': gt_boxes}
