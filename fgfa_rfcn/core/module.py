@@ -962,39 +962,39 @@ class MutableModule(BaseModule):
         ################################################################################
         # training loop
         ################################################################################
-        pre_filename = mx.nd.zeros((4))
-        pre_filename_pre = mx.nd.zeros((4))
+        #pre_filename = mx.nd.zeros((4))
+        #pre_filename_pre = mx.nd.zeros((4))
         #tmp_mem_block2 = mx.nd.zeros((4, 256, 282, 282), ctx = mx.gpu())
         #tmp_mem_block3 = mx.nd.zeros((4, 512, 157, 157), ctx = mx.gpu())
-        tmp_mem_block4 = mx.nd.zeros((4, 1024, 94, 94), ctx = mx.gpu())
-        tmp_mem_block5 = mx.nd.zeros((4, 2048, 94, 94), ctx = mx.gpu())
+        #tmp_mem_block4 = mx.nd.zeros((4, 1024, 94, 94), ctx = mx.gpu())
+        #tmp_mem_block5 = mx.nd.zeros((4, 2048, 94, 94), ctx = mx.gpu())
         for epoch in range(begin_epoch, num_epoch):
             tic = time.time()
             eval_metric.reset()
             for nbatch, data_batch in enumerate(train_data):
                 if monitor is not None:
                     monitor.tic()
-                for index in range(pre_filename.shape[0]):
-                    data_batch.data[index][9] = pre_filename[index]
-                    data_batch.data[index][10] = pre_filename_pre[index]
-                    mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][5])
-                    mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][6])
+                #for index in range(pre_filename.shape[0]):
+                    #data_batch.data[index][9] = pre_filename[index]
+                    #data_batch.data[index][10] = pre_filename_pre[index]
+                    #mx.nd.expand_dims(tmp_mem_block4[index], axis=0).copyto(data_batch.data[index][5])
+                    #mx.nd.expand_dims(tmp_mem_block5[index], axis=0).copyto(data_batch.data[index][6])
                 #misc.toimage(tmp_mem_block2[0][0].asnumpy()).save('images_train/mem_block2_'+str(fp)+'_'+str(f)+'.jpg')
 
                 self.forward_backward(data_batch)
-                for index in range(pre_filename.shape[0]):
-                    shape2 = self.get_outputs(merge_multi_context = False)[5][index].shape[2]
-                    shape3 = self.get_outputs(merge_multi_context = False)[5][index].shape[3]
-                    tmp_mem_block4[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[5][index]
-                    shape2 = self.get_outputs(merge_multi_context = False)[6][index].shape[2]
-                    shape3 = self.get_outputs(merge_multi_context = False)[6][index].shape[3]
-                    tmp_mem_block5[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[6][index]
+                #for index in range(pre_filename.shape[0]):
+                    #shape2 = self.get_outputs(merge_multi_context = False)[5][index].shape[2]
+                    #shape3 = self.get_outputs(merge_multi_context = False)[5][index].shape[3]
+                    #tmp_mem_block4[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[5][index]
+                    #shape2 = self.get_outputs(merge_multi_context = False)[6][index].shape[2]
+                    #shape3 = self.get_outputs(merge_multi_context = False)[6][index].shape[3]
+                    #tmp_mem_block5[index,:, 0:shape2, 0:shape3] = self.get_outputs(merge_multi_context = False)[6][index]
 
 
 
-                for index in range(pre_filename.shape[0]):
-                    pre_filename[index] = data_batch.data[index][7]
-                    pre_filename_pre[index] = data_batch.data[index][8]
+                #for index in range(pre_filename.shape[0]):
+                    #pre_filename[index] = data_batch.data[index][7]
+                    #pre_filename_pre[index] = data_batch.data[index][8]
                 #print 'output_names: ', self.get_outputs(merge_multi_context = False)[0][0].asnumpy()
                 self.update()
                 self.update_metric(eval_metric, data_batch.label)
