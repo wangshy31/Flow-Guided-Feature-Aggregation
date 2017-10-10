@@ -1667,9 +1667,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         return feat_conv_3x3_relu, mem_block5_tmp_relu
 
     def get_lstm_symbol(self, inputs, states, hidden):
-        mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
+        mem_i2h = mx.symbol.Convolution(name='mem_i2h', data=inputs, num_filter=512*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
-        mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, num_filter=2048*4, pad=(1, 1), kernel=(3, 3),
+        mem_h2h = mx.symbol.Convolution(name='mem_h2h', data=hidden, num_filter=512*4, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
         gates = mem_i2h + mem_h2h
         slice_gates = mx.symbol.SliceChannel(gates, num_outputs=4, name='slice_gates')
@@ -1746,16 +1746,25 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res5c_relu = mx.symbol.Activation(name='res5c_relu', data=res5c, act_type='relu')
         ####memory_block5####
         #stream3: from t-1
-        m_cell = mx.symbol.Crop(*[max_mem_cell, res5c_relu], name='m_cell')
-        m_hidden = mx.symbol.Crop(*[max_mem_hidden, res5c_relu], name='m_hidden')
-        mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mx.symbol.zeros_like(res5c_relu), name='mem_cell')
-        mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mx.symbol.zeros_like(res5c_relu), name='mem_hidden')
+
+        mem_conv1 = mx.symbol.Convolution(name='mem_conv1', data=res5c_relu, num_filter=512, pad=(0, 0),
+                                        kernel=(1, 1), stride=(1, 1), no_bias=False)
+        mem_ReLU1 = mx.symbol.Activation(name='mem_ReLU1', data=mem_conv1, act_type='relu')
+
+        m_cell = mx.symbol.Crop(*[max_mem_cell, mem_ReLU1], name='m_cell')
+        m_hidden = mx.symbol.Crop(*[max_mem_hidden, mem_ReLU1], name='m_hidden')
+        mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_cell')
+        mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_hidden')
         mem_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_flow_grid')
         mem_cell_warp = mx.sym.BilinearSampler(data=mem_cell, grid=mem_flow_grid, name='mem_cell_warp')
         mem_hidden_warp = mx.sym.BilinearSampler(data=mem_hidden, grid=mem_flow_grid, name='mem_hidden_warp')
 
-        mem_new_cell, mem_new_hidden = self.get_lstm_symbol(res5c_relu, mem_cell_warp, mem_hidden_warp)
-        mem_after = mem_new_cell + res5c_relu
+        mem_new_cell, mem_new_hidden = self.get_lstm_symbol(mem_ReLU1, mem_cell_warp, mem_hidden_warp)
+
+        mem_conv2 = mx.symbol.Convolution(name='mem_conv2', data=mem_new_cell, num_filter=2048, pad=(0, 0),
+                                        kernel=(1, 1), stride=(1, 1), no_bias=False)
+        mem_ReLU2 = mx.symbol.Activation(name='mem_ReLU2', data=mem_conv2, act_type='relu')
+        mem_after = mem_ReLU2 + res5c_relu
 
 
 
@@ -2383,6 +2392,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
+        arg_params['mem_conv1_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_conv1_weight'])
+        arg_params['mem_conv1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_conv1_bias'])
+        arg_params['mem_conv2_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_conv2_weight'])
+        arg_params['mem_conv2_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_conv2_bias'])
         arg_params['mem_i2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_i2h_weight'])
         arg_params['mem_i2h_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_i2h_bias'])
         arg_params['mem_h2h_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_h2h_weight'])
