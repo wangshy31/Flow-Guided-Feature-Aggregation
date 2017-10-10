@@ -104,7 +104,7 @@ def get_pair_image(roidb, config):
         processed_roidb.append(new_rec)
     return processed_ims, processed_ref_ims, processed_eq_flags, processed_roidb
 
-def get_triple_image(roidb, config, ipre_roidb):
+def get_triple_image(roidb, config, ipre_roidb_id, ipre_roidb_pattern):
     """
     preprocess image and return processed roidb
     :param roidb: a list of roidb
@@ -133,15 +133,13 @@ def get_triple_image(roidb, config, ipre_roidb):
             #bef_id = min(max(roi_rec['frame_seg_id'] -1, 0), roi_rec['frame_seg_len']-1)
             #aft_id = min(max(roi_rec['frame_seg_id'] + offsets[1], 0), roi_rec['frame_seg_len']-1)
             #bef_id = int(ipre_roidb[i])
-            if ipre_roidb[i] != '':
-                bef_id = int(ipre_roidb[i])
+            if ipre_roidb_pattern[i]==roi_rec['pattern']:
+                bef_id = int(ipre_roidb_id[i])
             else:
                 bef_id = roi_rec['frame_seg_id']
 
             bef_image = roi_rec['pattern'] % bef_id
             #aft_image = roi_rec['pattern'] % aft_id
-            if not os.path.exists(bef_image):
-                bef_image = roi_rec['pattern'] % roi_rec['frame_seg_id']
 
             assert os.path.exists(bef_image), '%s does not exist'.format(bef_image)
             #assert os.path.exists(aft_image), '%s does not exist'.format(aft_image)

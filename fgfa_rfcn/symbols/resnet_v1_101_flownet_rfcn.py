@@ -1840,13 +1840,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_block5_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_block5_flow_grid')
         mem_block5_warp = mx.sym.BilinearSampler(data=mem_block5_t_relu, grid=mem_block5_flow_grid, name='mem_block5_warp')
 
-        #attention_weight= mx.sym.SliceChannel(attention_weights, axis=1, num_outputs=2)
-        #weight1 = mx.symbol.tile(data=attention_weight[0], reps=(1, 2048, 1, 1))
-        #weight2 = mx.symbol.tile(data=attention_weight[1], reps=(1, 2048, 1, 1))
+        attention_weight= mx.sym.SliceChannel(attention_weights, axis=1, num_outputs=2)
+        weight1 = mx.symbol.tile(data=attention_weight[0], reps=(1, 2048, 1, 1))
+        weight2 = mx.symbol.tile(data=attention_weight[1], reps=(1, 2048, 1, 1))
         #mem_data_thresh = mx.symbol.round(data=attention_weight[1], name='mem_data_thresh')
-        block5_aft_mem = mx.symbol.where(condition=attention_weights.__ge__(0.5) , x=mem_block5_warp, y=res5c_relu, name='block5_aft_mem')
+        #block5_aft_mem = mx.symbol.where(condition=attention_weights.__ge__(0.5) , x=mem_block5_warp, y=res5c_relu, name='block5_aft_mem')
         #block5_aft_mem = mx.symbol.broadcast_mul(mem_block5_warp, mem_thresh) + mx.symbol.broadcast_mul(res5c_relu, mem_data_thresh)
-        #block5_aft_mem = block5_aft_mem/2
+        block5_aft_mem = mem_block5_warp * weight1 + res5c_relu * weight2
         ####memory_block5####
 
         feat_conv_3x3 = mx.sym.Convolution(
@@ -1974,13 +1974,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         Convolution5 = mx.symbol.Convolution(name='Convolution5', data=Concat5, num_filter=2, pad=(1, 1), kernel=(3, 3),
                                              stride=(1, 1), no_bias=False)
-        #attention = mx.symbol.Convolution(name='attention', data=Concat5, num_filter=2, pad=(1, 1), kernel=(3, 3),
-                                          #stride=(1, 1), no_bias=False)
+        attention = mx.symbol.Convolution(name='attention', data=Concat5, num_filter=2, pad=(1, 1), kernel=(3, 3),
+                                          stride=(1, 1), no_bias=False)
         #attention_pool = mx.symbol.Pooling(name='attention_pool', data=attention, global_pool=True, kernel=(100, 100),
                                   #pool_type='avg')
-        #attention_weights = mx.symbol.softmax(data=attention_pool, axis=1)
+        attention_weights = mx.symbol.softmax(data=attention, axis=1)
 
-        return Convolution5 * 2.5#, attention_weights
+        return Convolution5 * 2.5, attention_weights
 
     def get_train_symbol(self, cfg):
         # config alias for convenient
@@ -2377,8 +2377,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
 
-        #arg_params['attention_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['attention_weight'])
-        #arg_params['attention_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['attention_bias'])
+        arg_params['attention_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['attention_weight'])
+        arg_params['attention_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['attention_bias'])
         #arg_params['mem_block2_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block2_data_weight'])
         #arg_params['mem_block2_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block2_data_bias'])
         #arg_params['mem_block2_t_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block2_t_weight'])
@@ -2405,7 +2405,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #arg_params['mem_block4_tmp_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block4_tmp_weight'])
         #arg_params['mem_block4_tmp_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block4_tmp_bias'])
 
-        arg_params['mem_block5_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_data_weight'])
+        #arg_params['mem_block5_data_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_data_weight'])
         #arg_params['mem_block5_data_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_data_bias'])
         #arg_params['mem_block5_bottom_mem_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['mem_block5_bottom_mem_weight'])
         #arg_params['mem_block5_bottom_mem_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['mem_block5_bottom_mem_bias'])
@@ -2507,7 +2507,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         # pass through FlowNet
         concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
-        flow= self.get_flownet(concat_flow_data)
+        flow, attention_weights= self.get_flownet(concat_flow_data)
         #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
         condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
         # pass through ResNet
@@ -2516,7 +2516,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
         #conv_feat, block5_aft_mem= self.get_memory_resnet_v1_stage5(flow, attention_weights, max_mem_block5, res4b22_relu, condition)
-        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
+        #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
+        conv_feat, mem_block5_tmp_relu = self.get_weighted_resnet_v1_stage5(flow, attention_weights, max_mem_block5, res4b22_relu, condition)
 
 
         conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)

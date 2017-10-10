@@ -134,7 +134,7 @@ def get_rpn_pair_batch(roidb, cfg):
 
     return data, label
 
-def get_rpn_triple_batch(roidb, cfg, ipre_roidb):
+def get_rpn_triple_batch(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern):
     """
     prototype for rpn batch: data, im_info, gt_boxes
     :param roidb: ['image', 'flipped'] + ['gt_boxes', 'boxes', 'gt_classes']
@@ -142,7 +142,7 @@ def get_rpn_triple_batch(roidb, cfg, ipre_roidb):
     """
     assert len(roidb) == 1, 'Single batch only'
     #imgs, bef_imgs, aft_imgs, roidb = get_triple_image(roidb, cfg)
-    imgs, filename_pre, filename, bef_imgs, pattern, roidb = get_triple_image(roidb, cfg, ipre_roidb)
+    imgs, filename_pre, filename, bef_imgs, pattern, roidb = get_triple_image(roidb, cfg, ipre_roidb_id, ipre_roidb_pattern)
 
     im_array = imgs[0]
     bef_im_array = bef_imgs[0]
