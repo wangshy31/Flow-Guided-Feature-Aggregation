@@ -1840,15 +1840,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         mem_block5_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_block5_flow_grid')
         mem_block5_warp = mx.sym.BilinearSampler(data=mem_block5_t_relu, grid=mem_block5_flow_grid, name='mem_block5_warp')
 
-        attention_weight= mx.sym.SliceChannel(attention_weights, axis=1, num_outputs=2)
+        #attention_weight= mx.sym.SliceChannel(attention_weights, axis=1, num_outputs=2)
         #weight1 = mx.symbol.tile(data=attention_weight[0], reps=(1, 2048, 1, 1))
         #weight2 = mx.symbol.tile(data=attention_weight[1], reps=(1, 2048, 1, 1))
-        block5_aft_mem = mx.symbol.broadcast_mul(mem_block5_warp, attention_weight[0]) +\
-                                mx.symbol.broadcast_mul(res5c_relu, attention_weight[1])
+        #mem_data_thresh = mx.symbol.round(data=attention_weight[1], name='mem_data_thresh')
+        block5_aft_mem = mx.symbol.where(condition=attention_weights.__ge__(0.5) , x=mem_block5_warp, y=res5c_relu, name='block5_aft_mem')
+        #block5_aft_mem = mx.symbol.broadcast_mul(mem_block5_warp, mem_thresh) + mx.symbol.broadcast_mul(res5c_relu, mem_data_thresh)
         #block5_aft_mem = block5_aft_mem/2
         ####memory_block5####
-
-
 
         feat_conv_3x3 = mx.sym.Convolution(
             data=block5_aft_mem, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
