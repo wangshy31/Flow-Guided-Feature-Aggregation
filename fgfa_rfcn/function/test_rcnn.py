@@ -41,8 +41,8 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
                        #('max_mem_block2', (1, 256, 282, 282)),
                        #('max_mem_block3', (1, 512, 157, 157)),
                        #('max_mem_block4', (1, 1024, 94, 94)),
-                       ('max_mem_cell', (1, 2048, 94, 94)),
-                       ('max_mem_hidden', (1, 2048, 94, 94))
+                       ('max_mem_cell', (1, 512, 94, 94)),
+                       ('max_mem_hidden', (1, 512, 94, 94))
                        ]]
 
     # create predictor
