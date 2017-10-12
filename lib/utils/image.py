@@ -19,35 +19,35 @@ def get_image(roidb, config):
     """
     num_images = len(roidb)
     processed_ims = []
-    processed_bef_ims = []
+    #processed_bef_ims = []
     processed_pattern = []
     processed_roidb = []
     for i in range(num_images):
         roi_rec = roidb[i]
         assert os.path.exists(roi_rec['image']), '%s does not exist'.format(roi_rec['image'])
         im = cv2.imread(roi_rec['image'], cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
-        bef_id = min(max(roi_rec['frame_seg_id'] -1, 0), roi_rec['frame_seg_len']-1)
-        bef_image = roi_rec['pattern'] % bef_id
-        bef_im = cv2.imread(bef_image, cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
+        #bef_id = min(max(roi_rec['frame_seg_id'] -1, 0), roi_rec['frame_seg_len']-1)
+        #bef_image = roi_rec['pattern'] % bef_id
+        #bef_im = cv2.imread(bef_image, cv2.IMREAD_COLOR|cv2.IMREAD_IGNORE_ORIENTATION)
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
-            bef_im = bef_im[:, ::-1, :]
+            #bef_im = bef_im[:, ::-1, :]
         new_rec = roi_rec.copy()
         scale_ind = random.randrange(len(config.SCALES))
         target_size = config.SCALES[scale_ind][0]
         max_size = config.SCALES[scale_ind][1]
         im, im_scale = resize(im, target_size, max_size, stride=config.network.IMAGE_STRIDE)
-        bef_im, bef_im_scale = resize(bef_im, target_size, max_size, stride=config.network.IMAGE_STRIDE)
+        #bef_im, bef_im_scale = resize(bef_im, target_size, max_size, stride=config.network.IMAGE_STRIDE)
         im_tensor = transform(im, config.network.PIXEL_MEANS)
-        bef_im_tensor = transform(bef_im, config.network.PIXEL_MEANS)
+        #bef_im_tensor = transform(bef_im, config.network.PIXEL_MEANS)
         processed_ims.append(im_tensor)
-        processed_bef_ims.append(bef_im_tensor)
+        #processed_bef_ims.append(bef_im_tensor)
         processed_pattern.append(1)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
         new_rec['boxes'] = clip_boxes(np.round(roi_rec['boxes'].copy() * im_scale), im_info[:2])
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
-    return processed_ims, processed_bef_ims, processed_pattern, processed_roidb
+    return processed_ims, processed_pattern, processed_roidb
 
 def get_pair_image(roidb, config):
     """

@@ -24,9 +24,9 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
     :return: data, label, im_info
     """
     # assert len(roidb) == 1, 'Single batch only'
-    imgs, bef_imgs, pattern, roidb = get_image(roidb, cfg)
+    imgs, pattern, roidb = get_image(roidb, cfg)
     im_array = imgs
-    bef_im_array = bef_imgs
+    #bef_im_array = bef_imgs
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
 
     data = [{'data': im_array[i],
@@ -39,7 +39,7 @@ def get_rpn_testbatch(roidb, cfg, cur_roidb_index, cur_frameid):
             'filename': np.array([cur_frameid[i]]),
             'pre_filename_pre': np.array([cur_roidb_index[i]]),
             'pre_filename': np.array([cur_frameid[i]]),
-            'data_bef': bef_im_array[i],
+            #'data_bef': bef_im_array[i],
             'data_pattern': np.array(pattern),
             #'data_aft': aft_im_array,
             'im_info': im_info[i]} for i in range(len(roidb))]
@@ -62,7 +62,7 @@ def get_rpn_testbatch_bak(roidb, cfg, cur_roidb_index, cur_frameid):
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
 
     data = [{'data': im_array[i],
-            'data_bef': bef_imgs[i],
+            #'data_bef': bef_imgs[i],
             'filename_pre': np.array([cur_roidb_index[i]]),
             'filename': np.array([cur_frameid[i]]),
             'im_info': im_info[i]} for i in range(len(roidb))]

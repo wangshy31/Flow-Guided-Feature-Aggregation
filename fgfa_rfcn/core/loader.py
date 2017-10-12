@@ -33,7 +33,7 @@ class TestLoader(mx.io.DataIter):
 
         # decide data and label names (only for training)
         #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
-        self.data_name = ['data', 'data_bef', 'data_pattern', 'im_info', \
+        self.data_name = ['data', 'data_pattern', 'im_info', \
                           'max_mem_cell', 'max_mem_hidden',\
                           'filename', 'filename_pre', 'pre_filename', 'pre_filename_pre']
         self.label_name = None
@@ -117,7 +117,7 @@ class TestLoader(mx.io.DataIter):
             self.key_frame_flag = 2
 
         extend_data = [{'data': data[0]['data'] ,
-                        'data_bef': data[0]['data_bef'],
+                        #'data_bef': data[0]['data_bef'],
                         'data_pattern': data[0]['data_pattern'],
                         'im_info': data[0]['im_info'],
                         'filename_pre': data[0]['filename_pre'],
@@ -146,7 +146,7 @@ class TestLoader(mx.io.DataIter):
 
         feat_stride = float(self.cfg.network.RCNN_FEAT_STRIDE)
         extend_data = [{'data': data[0]['data'] ,
-                        'data_bef': data[0]['data_bef'],
+                        #'data_bef': data[0]['data_bef'],
                         'data_pattern': data[0]['data_pattern'],
                         'im_info': data[0]['im_info'],
                         'filename_pre': data[0]['filename_pre'],

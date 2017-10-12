@@ -1753,8 +1753,9 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         m_cell = mx.symbol.Crop(*[max_mem_cell, mem_ReLU1], name='m_cell')
         m_hidden = mx.symbol.Crop(*[max_mem_hidden, mem_ReLU1], name='m_hidden')
-        mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_cell')
-        mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mx.symbol.zeros_like(mem_ReLU1), name='mem_hidden')
+        mem_clean = mx.symbol.zeros_like(mem_ReLU1)
+        mem_cell = mx.symbol.where(condition=condition.__eq__(3), x = m_cell, y = mem_clean, name='mem_cell')
+        mem_hidden = mx.symbol.where(condition=condition.__eq__(3), x = m_hidden, y = mem_clean, name='mem_hidden')
         #mem_flow_grid = mx.sym.GridGenerator(data=flow_data, transform_type='warp', name='mem_flow_grid')
         #mem_cell_warp = mx.sym.BilinearSampler(data=mem_cell, grid=mem_flow_grid, name='mem_cell_warp')
         #mem_hidden_warp = mx.sym.BilinearSampler(data=mem_hidden, grid=mem_flow_grid, name='mem_hidden_warp')
@@ -2172,11 +2173,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         num_anchors = cfg.network.NUM_ANCHORS
 
         data = mx.sym.Variable(name="data")
-        data_bef = mx.sym.Variable(name="data_bef")
+        #data_bef = mx.sym.Variable(name="data_bef")
         #max_mem_block2 = mx.sym.Variable(name="max_mem_block2")
         #max_mem_block3 = mx.sym.Variable(name="max_mem_block3")
         #max_mem_block4 = mx.sym.Variable(name="max_mem_block4")
-        max_mem_block5 = mx.sym.Variable(name="max_mem_block5")
+        max_mem_cell = mx.sym.Variable(name="max_mem_cell")
+        max_mem_hidden = mx.sym.Variable(name="max_mem_hidden")
         im_info = mx.sym.Variable(name="im_info")
         filename_pre = mx.symbol.Variable(name ="filename_pre")
         filename = mx.symbol.Variable(name ="filename")
@@ -2184,8 +2186,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         pre_filename = mx.symbol.Variable(name ="pre_filename")
         pattern = mx.symbol.Variable(name='data_pattern')
         # pass through FlowNet
-        concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
-        flow = self.get_flownet(concat_flow_data)
+        #concat_flow_data = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
+        #flow = self.get_flownet(concat_flow_data)
         #condition = filename_pre.__eq__(pre_filename_pre) + filename.__eq__(pre_filename+1)
         condition = filename_pre.__eq__(pre_filename_pre) +filename.__le__(pre_filename+100)+ pattern.__eq__(1)
 
@@ -2193,11 +2195,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         res2c_relu = self.get_memory_resnet_v1_stage2(pool1)
         res3b3_relu = self.get_memory_resnet_v1_stage3(res2c_relu)
         res4b22_relu = self.get_memory_resnet_v1_stage4(res3b3_relu)
-        conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(flow, max_mem_block5, res4b22_relu, condition)
-        #block2_aft_mem, mem_block2_tmp_relu = self.get_memory_resnet_v1_stage2(data, flow, max_mem_block2, pool1, condition)
-        #block3_aft_mem, mem_block3_tmp_relu = self.get_memory_resnet_v1_stage3(data, flow, max_mem_block3, block2_aft_mem, mem_block2_tmp_relu, condition)
-        #block4_aft_mem, mem_block4_tmp_relu = self.get_memory_resnet_v1_stage4(data, flow, max_mem_block4, block3_aft_mem, mem_block3_tmp_relu, condition)
-        #conv_feat, mem_block5_tmp_relu = self.get_memory_resnet_v1_stage5(data, flow, max_mem_block5, block4_aft_mem, mem_block4_tmp_relu, condition)
+        conv_feat, mem_new_cell, mem_new_hidden = self.get_lstm_resnet_v1_stage5(max_mem_cell, max_mem_hidden, res4b22_relu, condition)
         conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
 
         ##############################################
@@ -2268,7 +2266,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # group output
         group = mx.sym.Group([data, rois, cls_prob, bbox_pred,\
                               #mx.sym.BlockGrad(mem_block2_tmp_relu), mx.sym.BlockGrad(mem_block3_tmp_relu), \
-                              mx.sym.BlockGrad(mem_block5_tmp_relu)])
+                              mx.sym.BlockGrad(mem_new_cell), mx.sym.BlockGrad(mem_new_hidden)])
 
         self.sym = group
         return group
