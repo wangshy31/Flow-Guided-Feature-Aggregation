@@ -910,6 +910,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         select_conv_feat = weight1 * warp_conv_feat_1 + weight2 * warp_conv_feat_2
 
         conv_feats = mx.sym.SliceChannel(select_conv_feat, axis=1, num_outputs=2)
+        bef_conv_feats = mx.sym.SliceChannel(conv_feat[1], axis=1, num_outputs=2)
+        aft_conv_feats = mx.sym.SliceChannel(conv_feat[2], axis=1, num_outputs=2)
 
         # RPN layers
         rpn_feat = conv_feats[0]
@@ -971,11 +973,20 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                               fg_fraction=cfg.TRAIN.FG_FRACTION)
 
         # res5
-        rfcn_feat = conv_feats[1]
+        #rfcn_feat = conv_feats[1]
+        #a,b,c = conv_feat[1].infer_shape(data=(1,3,600,900), data_bef = (1,3,600,900), data_aft=(1,3,600,900))
+        #print 'conv_feat[1] shape:!!!!!!!!!!!!! ', b
+        rfcn_feat = mx.symbol.Concat(*[conv_feats[1], bef_conv_feats[1], aft_conv_feats[1]], dim=0)
         rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
-        rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+        scores = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=3)
+        warp_score_1 = mx.sym.BilinearSampler(data=scores[1], grid=flow_grid_1, name='warping_score_1')
+        warp_score_2 = mx.sym.BilinearSampler(data=scores[2], grid=flow_grid_2, name='warping_socre_2')
+        rfcn_score_concat = mx.symbol.Concat(*[scores[0], warp_score_1, warp_score_2], dim=0)
+        rfcn_cls_mean = mx.symbol.mean(data = rfcn_score_concat, axis=0, keepdims = True, name='rfcn_cls_mean')
+        #rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+        rfcn_bbox = mx.sym.Convolution(data=conv_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=rois,
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_mean, rois=rois,
                                                            group_size=7,
                                                            pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
@@ -983,6 +994,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                            group_size=7,
                                                            pooled_size=7,
                                                            output_dim=8, spatial_scale=0.0625)
+
+
         cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
@@ -1058,13 +1071,13 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         cur_data_copies = mx.sym.tile(cur_data, reps=(data_range, 1, 1, 1))
         flow_input = mx.symbol.Concat(cur_data_copies / 255.0, data_cache / 255.0, dim=1)
         flow = self.get_flownet(flow_input)
-        
+
         flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
         conv_feat = mx.sym.BilinearSampler(data=feat_cache, grid=flow_grid, name='warping_feat')  # warped result
 
         embed_output = mx.symbol.slice_axis(conv_feat, axis=1, begin=1024, end=3072)
         conv_feat = mx.symbol.slice_axis(conv_feat, axis=1, begin=0, end=1024)
-        
+
         # compute weight
         cur_embed = mx.symbol.slice_axis(embed_output, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL, end=cfg.TEST.KEY_FRAME_INTERVAL+1)
         cur_embed = mx.sym.tile(cur_embed, reps=(data_range, 1, 1, 1))
@@ -1082,7 +1095,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         #weights = mx.symbol.tile(data=weights, reps=(1, 1024, 1, 1))
         #aggregated_conv_feat = mx.sym.sum(weights * conv_feat, axis=0, keepdims=True)
-        
+
         conv_feats = mx.sym.SliceChannel(aggregated_conv_feat, axis=1, num_outputs=2)
 
         ##############################################

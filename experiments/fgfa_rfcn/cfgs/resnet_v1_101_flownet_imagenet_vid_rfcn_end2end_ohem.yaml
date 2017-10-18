@@ -2,7 +2,7 @@
 MXNET_VERSION: ""
 output_path: "./output/fgfa_rfcn/imagenet_vid"
 symbol: resnet_v1_101_flownet_rfcn
-gpus: '4,5,6,7'
+gpus: '0,1,2,3'
 CLASS_AGNOSTIC: true
 SCALES:
 - 600
@@ -50,6 +50,7 @@ dataset:
   dataset: ImageNetVID
   dataset_path: "./data/ILSVRC2015"
   image_set: DET_train_30classes+VID_train_15frames
+  #image_set: DET_VID_orglist
   root_path: "./data"
   test_image_set: VID_val_videos
   proposal: rpn
@@ -57,13 +58,13 @@ dataset:
   enable_detailed_eval: true
 TRAIN:
   lr: 0.00025
-  lr_step: '1.333'
+  lr_step: '3.333'
   warmup: false
-  begin_epoch: 0
-  end_epoch: 2
+  begin_epoch: 3
+  end_epoch: 4
   model_prefix: 'fgfa_rfcn_vid'
   # whether resume training
-  RESUME: false
+  RESUME: true
   # whether flip image
   FLIP: true
   # whether shuffle image
@@ -142,4 +143,4 @@ TEST:
   RPN_MIN_SIZE: 0
   # RCNN nms
   NMS: 0.3
-  test_epoch: 2
+  test_epoch: 4
