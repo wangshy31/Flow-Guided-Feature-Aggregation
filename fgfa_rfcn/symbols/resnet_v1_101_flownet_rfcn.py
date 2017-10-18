@@ -981,12 +981,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         scores = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=3)
         warp_score_1 = mx.sym.BilinearSampler(data=scores[1], grid=flow_grid_1, name='warping_score_1')
         warp_score_2 = mx.sym.BilinearSampler(data=scores[2], grid=flow_grid_2, name='warping_socre_2')
-        rfcn_score_concat = mx.symbol.Concat(*[scores[0], warp_score_1, warp_score_2], dim=0)
-        rfcn_cls_mean = mx.symbol.mean(data = rfcn_score_concat, axis=0, keepdims = True, name='rfcn_cls_mean')
+        #rfcn_score_concat = mx.symbol.Concat(*[scores[0], warp_score_1, warp_score_2], dim=0)
+        #rfcn_score_concat = mx.symbol.Concat(*[scores[0], warp_score_1], dim=0)
+        rfcn_cls_mean = scores[0]+warp_score_1+warp_score_2
+        rfcn_cls_mean = rfcn_cls_mean/3.0
         #rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
         rfcn_bbox = mx.sym.Convolution(data=conv_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_mean, rois=rois,
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=rois,
                                                            group_size=7,
                                                            pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
