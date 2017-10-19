@@ -30,7 +30,7 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     data_names = [k[0] for k in test_data.provide_data_single]
     label_names = None
     max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
-                       ('data_cache', (19, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
+                       #('data_cache', (19, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ]]
 
     # create predictor
@@ -56,7 +56,7 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
     aggr_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
 
     feat_sym = feat_sym_instance.get_feat_symbol(cfg)
-    aggr_sym = aggr_sym_instance.get_aggregation_symbol(cfg)
+    aggr_sym = aggr_sym_instance.get_correlation_test_symbol(cfg)
 
     imdb = eval(dataset)(image_set, root_path, dataset_path, motion_iou_path, result_path=output_path, enable_detailed_eval=enable_detailed_eval)
     roidb = imdb.gt_roidb()
