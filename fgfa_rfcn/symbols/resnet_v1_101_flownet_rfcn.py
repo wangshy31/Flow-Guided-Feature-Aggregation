@@ -1253,6 +1253,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #aggregated_conv_feat = mx.sym.sum(weights * conv_feat, axis=0, keepdims=True)
 
         conv_feats = mx.sym.SliceChannel(aggregated_conv_feat, axis=1, num_outputs=2)
+        aux_feat_cache = mx.symbol.slice_axis(feat_cache, axis=1, begin=0, end=1024)
+        aux_conv_feat = mx.symbol.Concat(mx.symbol.slice_axis(aux_feat_cache, axis=0, begin=0, end=cfg.TEST.KEY_FRAME_INTERVAL),
+                                          aggregated_conv_feat,
+                                          mx.symbol.slice_axis(aux_feat_cache, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL+1, end=data_range),
+                                          dim=0)
+        aux_conv_feats = mx.sym.SliceChannel(aux_conv_feat, axis=1, num_outputs=2)
 
         ##############################################
         # RPN
@@ -1290,11 +1296,19 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                 threshold=cfg.TEST.RPN_NMS_THRESH, rpn_min_size=cfg.TEST.RPN_MIN_SIZE)
 
         # res5
-        rfcn_feat = conv_feats[1]
-        rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
-        rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+        #rfcn_feat = conv_feats[1]
+        #rfcn_feat = mx.symbol.Concat(*[conv_feats[1], bef_conv_feats[1], aft_conv_feats[1]], dim=0)
+        rfcn_cls = mx.sym.Convolution(data=aux_conv_feats[1], kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
+        warp_scores = mx.sym.BilinearSampler(data=rfcn_cls, grid=flow_grid, name='warping_scores')
+        scores = mx.sym.SliceChannel(warp_scores, axis=0, num_outputs=data_range)
+        aggregated_conv_score = 0
+        for i in range(data_range):
+            aggregated_conv_score += scores[i]
+        rfcn_cls_mean = aggregated_conv_score/data_range
+        #rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
+        rfcn_bbox = mx.sym.Convolution(data=conv_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=rois,
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_mean, rois=rois,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
         psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
