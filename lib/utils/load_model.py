@@ -13,6 +13,7 @@ def load_checkpoint(prefix, epoch):
         Model parameter, dict of name to NDArray of net's auxiliary states.
     """
     save_dict = mx.nd.load('%s-%04d.params' % (prefix, epoch))
+    print 'load %s-%04d.params'% (prefix, epoch)
     arg_params = {}
     aux_params = {}
     for k, v in save_dict.items():
