@@ -1445,15 +1445,15 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         arg_params['feat_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['feat_conv_3x3_weight'])
         arg_params['feat_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['feat_conv_3x3_bias'])
 
-        arg_params['em_conv1_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv1_weight']),
-                                                         shape=self.arg_shape_dict['em_conv1_weight'])
-        arg_params['em_conv1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv1_bias'])
-        arg_params['em_conv2_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv2_weight']),
-                                                         shape=self.arg_shape_dict['em_conv2_weight'])
-        arg_params['em_conv2_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv2_bias'])
-        arg_params['em_conv3_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv3_weight']),
-                                                         shape=self.arg_shape_dict['em_conv3_weight'])
-        arg_params['em_conv3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv3_bias'])
+        #arg_params['em_conv1_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv1_weight']),
+                                                         #shape=self.arg_shape_dict['em_conv1_weight'])
+        #arg_params['em_conv1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv1_bias'])
+        #arg_params['em_conv2_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv2_weight']),
+                                                         #shape=self.arg_shape_dict['em_conv2_weight'])
+        #arg_params['em_conv2_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv2_bias'])
+        #arg_params['em_conv3_weight'] = mx.random.normal(0, self.get_msra_std(self.arg_shape_dict['em_conv3_weight']),
+                                                         #shape=self.arg_shape_dict['em_conv3_weight'])
+        #arg_params['em_conv3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['em_conv3_bias'])
 
         arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01,
                                                               shape=self.arg_shape_dict['rpn_cls_score_weight'])
