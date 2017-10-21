@@ -1203,8 +1203,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         # shared convolutional layers
         conv_feat = self.get_resnet_v1(data)
-        #embed_feat = self.get_embednet(conv_feat)
-        embed_feat = mx.sym.Concat(conv_feat, conv_feat, name="embed_feat")
+        embed_feat = self.get_embednet(conv_feat)
+        #embed_feat = mx.sym.Concat(conv_feat, conv_feat, name="embed_feat")
         conv_embed = mx.sym.Concat(conv_feat, embed_feat, name="conv_embed")
 
         group = mx.sym.Group([conv_embed, im_info, data_cache, feat_cache])
