@@ -134,17 +134,40 @@ def get_resnet_output(predictor, data_batch, data_names):
         feat = None
     return data_dict_all[0]['data'], feat.copy()
 
+def prepare_data(data_list, feat_list, data_batch):
+    concat_feat = mx.ndarray.concatenate(list(feat_list), axis=0)
+    concat_data = mx.ndarray.concatenate(list(data_list), axis=0)
 
-def im_detect(predictor, data_batch, data_names, scales, cfg):
+    data_batch.data[0][-2] = concat_data
+    data_batch.provide_data[0][-2] = ('data_cache', concat_data.shape)
+    data_batch.data[0][-1] = concat_feat
+    data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
+
+def prepare_roi(_list, feat_list, data_batch):
+    concat_feat = mx.ndarray.concatenate(list(feat_list), axis=0)
+    concat_data = mx.ndarray.concatenate(list(data_list), axis=0)
+
+    data_batch.data[0][-2] = concat_data
+    data_batch.provide_data[0][-2] = ('data_cache', concat_data.shape)
+    data_batch.data[0][-1] = concat_feat
+    data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
+
+
+def rpn_detect(predictor, data_batch, cfg):
+    output_all = predictor.predict(data_batch)
+    return output_all[0]['agg_feats'], output_all[0]['rois']
+    #data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
+
+def rcnn_detect(predictor, data_batch, data_name, rois, scales, cfg):
     output_all = predictor.predict(data_batch)
     data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
     scores_all = []
     pred_boxes_all = []
     for output, data_dict, scale in zip(output_all, data_dict_all, scales):
-        if cfg.TEST.HAS_RPN:
-            rois = output['rois_output'].asnumpy()[:, 1:]
-        else:
-            rois = data_dict['rois'].asnumpy().reshape((-1, 5))[:, 1:]
+        #if cfg.TEST.HAS_RPN:
+            #rois = output['rois_output'].asnumpy()[:, 1:]
+        #else:
+            #rois = data_dict['rois'].asnumpy().reshape((-1, 5))[:, 1:]
         im_shape = data_dict['data'].shape
 
         # save output
@@ -201,7 +224,7 @@ def pred_eval_seqnms(gpu_id,imdb):
         res=[all_boxes, frame_ids]
         imdb.evaluate_detections_multiprocess_seqnms(res, gpu_id)
 
-def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
     """
     wrapper for calculating offline validation for faster data analysis
     in this example, all threshold are set by hand
@@ -254,6 +277,7 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
     for im_info, key_frame_flag, data_batch in test_data:
         t1 = time.time() - t
         t = time.time()
+        print 'data_batch', data_batch
 
         #################################################
         # new video                                     #
@@ -266,6 +290,7 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
             # init data_lsit and feat_list for a new video
             data_list = deque(maxlen=all_frame_interval)
             feat_list = deque(maxlen=all_frame_interval)
+            gt_roi_list = deque(maxlen=all_frame_interval)
             image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
             # append cfg.TEST.KEY_FRAME_INTERVAL+1 padding images in the front (first frame)
             while len(data_list) < cfg.TEST.KEY_FRAME_INTERVAL+1:
@@ -289,7 +314,9 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
                 data_list.append(image)
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
-                pred_result = im_detect(aggr_predictors, data_batch, data_names, scales, cfg)
+                warp_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
+                prepare_roi(data_batch, rpn_rois)
+                pred_result = im_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
 
                 roidb_offset += 1
                 frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset
@@ -324,7 +351,9 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
                 data_list.append(image)
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
-                pred_result = im_detect(aggr_predictors, data_batch, data_names, scales, cfg)
+                warp_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
+                prepare_roi(data_batch, rpn_rois)
+                pred_result = im_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
 
                 roidb_offset += 1
                 frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset
@@ -358,22 +387,22 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
 def run_dill_encode(payload):
     fun,args=dill.loads(payload)
     return fun(*args)
-    
+
 def apply_async(pool,fun,args):
     payload=dill.dumps((fun,args))
     return pool.apply_async(run_dill_encode,(payload,))
 
-def pred_eval_multiprocess(gpu_num, key_predictors, cur_predictors, test_datas, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+def pred_eval_multiprocess(gpu_num, key_predictors, rpn_predictors, rcnn_predictors, test_datas, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
 
     if cfg.TEST.SEQ_NMS==False:
         if gpu_num == 1:
-            res = [pred_eval(0, key_predictors[0], cur_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger,
+            res = [pred_eval(0, key_predictors[0], rpn_predictors[0], rcnn_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger,
                              ignore_cache), ]
         else:
             from multiprocessing.pool import ThreadPool as Pool
             pool = Pool(processes=gpu_num)
             multiple_results = [pool.apply_async(pred_eval, args=(
-            i, key_predictors[i], cur_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i
+            i, key_predictors[i], rpn_predictors[i], rcnn_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i
                                 in range(gpu_num)]
             pool.close()
             pool.join()
@@ -383,14 +412,14 @@ def pred_eval_multiprocess(gpu_num, key_predictors, cur_predictors, test_datas, 
 
     else :
         if gpu_num == 1:
-            res = [pred_eval(0, key_predictors[0], cur_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger, ignore_cache),]
+            res = [pred_eval(0, key_predictors[0], rpn_predictors[0], rcnn_predictors[0], test_datas[0], imdb, cfg, vis, thresh, logger, ignore_cache),]
 
         else:
             from multiprocessing.pool import ThreadPool as Pool
 
             pool = Pool(processes=gpu_num)
             multiple_results = [pool.apply_async(pred_eval, args=(
-            i, key_predictors[i], cur_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i in
+            i, key_predictors[i], rpn_predictors[i], rcnn_predictors[i], test_datas[i], imdb, cfg, vis, thresh, logger, ignore_cache)) for i in
                                 range(gpu_num)]
             pool.close()
             pool.join()
@@ -476,16 +505,6 @@ def draw_all_detection(im_array, detections, class_names, scale, cfg, threshold=
             cv2.putText(im, '%s %.3f' % (class_names[j], score), (bbox[0], bbox[1] + 10),
                         color=color_white, fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=0.5)
     return im
-
-def prepare_data(data_list, feat_list, data_batch):
-    concat_feat = mx.ndarray.concatenate(list(feat_list), axis=0)
-    concat_data = mx.ndarray.concatenate(list(data_list), axis=0)
-
-    data_batch.data[0][-2] = concat_data
-    data_batch.provide_data[0][-2] = ('data_cache', concat_data.shape)
-    data_batch.data[0][-1] = concat_feat
-    data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
-
 
 def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, idx, max_per_image, vis, center_image, scales):
     for delta, (scores, boxes, data_dict) in enumerate(pred_result):

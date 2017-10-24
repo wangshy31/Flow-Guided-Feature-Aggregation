@@ -151,6 +151,7 @@ class ImageNetVID(IMDB):
 
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
+        gt_trackid = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
         valid_objs = np.zeros((num_objs), dtype=np.bool)
 
@@ -163,22 +164,28 @@ class ImageNetVID(IMDB):
             y1 = np.maximum(float(bbox.find('ymin').text), 0)
             x2 = np.minimum(float(bbox.find('xmax').text), roi_rec['width']-1)
             y2 = np.minimum(float(bbox.find('ymax').text), roi_rec['height']-1)
+
+            trackid = np.maximum(float(obj.find('trackid').text), 0)
+
             if not class_to_index.has_key(obj.find('name').text):
                 continue
             valid_objs[ix] = True
             cls = class_to_index[obj.find('name').text.lower().strip()]
             boxes[ix, :] = [x1, y1, x2, y2]
             gt_classes[ix] = cls
+            gt_trackid[ix] = trackid
             overlaps[ix, cls] = 1.0
 
         boxes = boxes[valid_objs, :]
         gt_classes = gt_classes[valid_objs]
+        gt_trackid = gt_trackid[valid_objs]
         overlaps = overlaps[valid_objs, :]
 
         assert (boxes[:, 2] >= boxes[:, 0]).all()
 
         roi_rec.update({'boxes': boxes,
                         'gt_classes': gt_classes,
+                        'gt_trackid' : gt_trackid,
                         'gt_overlaps': overlaps,
                         'max_classes': overlaps.argmax(axis=1),
                         'max_overlaps': overlaps.max(axis=1),
@@ -357,7 +364,7 @@ class ImageNetVID(IMDB):
                             f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
                                     format(frame_ids[im_ind], cls_ind, dets[k, -1],
                                            dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3]))
-    
+
     def do_python_eval(self):
         """
         python evaluation wrapper
@@ -393,7 +400,7 @@ class ImageNetVID(IMDB):
             for i in range(len(self.pattern)):
                 for j in range(self.frame_seg_len[i]):
                     f.write((self.pattern[i] % (self.frame_seg_id[i] + j)) + ' ' + str(self.frame_id[i] + j) + '\n')
-                    
+
         if gpu_number != None:
             filenames = []
             for i in range(gpu_number):

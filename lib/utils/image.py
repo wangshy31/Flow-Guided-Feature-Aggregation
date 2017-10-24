@@ -93,7 +93,7 @@ def get_pair_image(roidb, config):
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
     return processed_ims, processed_ref_ims, processed_eq_flags, processed_roidb
-    
+
 def get_triple_image(roidb, config):
     """
     preprocess image and return processed roidb

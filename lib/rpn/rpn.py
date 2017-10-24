@@ -28,9 +28,17 @@ def get_rpn_testbatch(roidb, cfg):
     imgs, roidb = get_image(roidb, cfg)
     im_array = imgs
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
+    box_info = []
+    for i in range(len(roidb)):
+        tmp_info = []
+        for j in range(len(roidb[i]['boxes'])):
+            tmp_info.append(np.append(roidb[i]['boxes'][j], roidb[i]['gt_trackid'][j]))
+        box_info.append(np.array(tmp_info))
+
 
     data = [{'data': im_array[i],
-            'im_info': im_info[i]} for i in range(len(roidb))]
+            'im_info': im_info[i],
+            'box_info': box_info[i]} for i in range(len(roidb))]
     label = {}
 
     return data, label, im_info
@@ -91,7 +99,7 @@ def get_rpn_pair_batch(roidb, cfg):
     label = {'gt_boxes': gt_boxes}
 
     return data, label
-    
+
 def get_rpn_triple_batch(roidb, cfg):
     """
     prototype for rpn batch: data, im_info, gt_boxes
