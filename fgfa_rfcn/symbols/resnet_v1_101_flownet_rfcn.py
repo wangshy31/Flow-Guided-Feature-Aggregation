@@ -1031,13 +1031,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         im_info = mx.sym.Variable(name="im_info")
         data_cache = mx.sym.Variable(name="data_cache")
         feat_cache = mx.sym.Variable(name="feat_cache")
+        gt_roi_cache = mx.sym.Variable(name="gt_roi_cache")
 
         # shared convolutional layers
         conv_feat = self.get_resnet_v1(data)
         embed_feat = self.get_embednet(conv_feat)
         conv_embed = mx.sym.Concat(conv_feat, embed_feat, name="conv_embed")
 
-        group = mx.sym.Group([conv_embed, im_info, data_cache, feat_cache])
+        group = mx.sym.Group([conv_embed, im_info, data_cache, feat_cache, gt_roi_cache])
         self.sym = group
         return group
 
@@ -1163,10 +1164,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         data_range = cfg.TEST.KEY_FRAME_INTERVAL * 2 + 1
 
         #data_cur = mx.sym.Variable(name="data")                 # not used
-        im_info = mx.sym.Variable(name="im_info")
-        data_cache = mx.sym.Variable(name="data_cache")         # data_cache contains data_range images
-        feat_cache = mx.sym.Variable(name="feat_cache")         # feat_cache contains the data_range feature maps of the images
 
+        data = mx.sym.Variable(name="data")
+        im_info = mx.sym.Variable(name="im_info")
+        data_cache = mx.sym.Variable(name="data_cache")
+        feat_cache = mx.sym.Variable(name="feat_cache")
+        gt_roi_cache = mx.sym.Variable(name="gt_roi_cache")
         # make data_range copies of the center frame to pass through FlowNet
         cur_data = mx.symbol.slice_axis(data_cache, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL, end=cfg.TEST.KEY_FRAME_INTERVAL+1)
         cur_data_copies = mx.sym.tile(cur_data, reps=(data_range, 1, 1, 1))
@@ -1233,16 +1236,19 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                 scales=tuple(cfg.network.ANCHOR_SCALES), ratios=tuple(cfg.network.ANCHOR_RATIOS),
                 rpn_pre_nms_top_n=cfg.TEST.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TEST.RPN_POST_NMS_TOP_N,
                 threshold=cfg.TEST.RPN_NMS_THRESH, rpn_min_size=cfg.TEST.RPN_MIN_SIZE)
-        agg_feats = conv_feats[1]
-        group = mx.sym.Group([agg_feats, rois])
+        #agg_feats = conv_feats[1]
+        group = mx.sym.Group([data, aggregated_conv_feat, rois, gt_roi_cache])
         self.sym = group
         return group
 
     def get_rcnn_symbol(self, cfg):
         # res5
         #rfcn_feat = conv_feats[1]
-        feat_cache = mx.sym.Variable(name="feat_cache")         # feat_cache contains the data_range feature maps of the images
-        aux_roi_cache = mx.sym.Variable(name="gt_roi_cache")                 # not used
+        data = mx.sym.Variable(name="data")
+        im_info = mx.sym.Variable(name="im_info")
+        data_cache = mx.sym.Variable(name="data_cache")
+        feat_cache = mx.sym.Variable(name="feat_cache")
+        gt_roi_cache = mx.sym.Variable(name="gt_roi_cache")
         num_classes = cfg.dataset.NUM_CLASSES
         num_reg_classes = (2 if cfg.CLASS_AGNOSTIC else num_classes)
         #num_anchors = cfg.network.NUM_ANCHORS
@@ -1253,10 +1259,10 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
         rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=aux_roi_cache,
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=gt_roi_cache,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
-        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=aux_roi_cache,
+        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=gt_roi_cache,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=8, spatial_scale=0.0625)
         psroipooled_cls_rois_mean = mx.symbol.mean(data=psroipooled_cls_rois, axis=0, keepdims=True, name='psroipooled_cls_rois_mean')
@@ -1282,7 +1288,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         # group output
         #group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred])
-        group = mx.sym.Group([cls_prob, bbox_pred])
+        group = mx.sym.Group([data, im_info, data_cache, cls_prob, bbox_pred])
         self.sym = group
         return group
 

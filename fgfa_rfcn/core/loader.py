@@ -32,8 +32,8 @@ class TestLoader(mx.io.DataIter):
         self.index = np.arange(self.size)
 
         # decide data and label names (only for training)
-        #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache', 'gt_roi_cache']
-        self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
+        self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache', 'gt_roi_cache']
+        #self.data_name = ['data', 'im_info', 'data_cache', 'feat_cache']
         self.label_name = None
 
         #
@@ -114,7 +114,7 @@ class TestLoader(mx.io.DataIter):
                         'im_info': data[0]['im_info'],
                         'data_cache': data[0]['data'],
                         'feat_cache': data[0]['data'],
-                        'gt_roi_cache': data[0]['box_info']}]
+                        'gt_roi_cache': np.zeros((self.cfg.TEST.max_per_image, 5))}]
         self.data = [[mx.nd.array(extend_data[i][name]) for name in self.data_name] for i in xrange(len(data))]
         self.im_info = im_info
 
@@ -135,7 +135,7 @@ class TestLoader(mx.io.DataIter):
                         'feat_cache': np.zeros((19, self.cfg.network.FGFA_FEAT_DIM,
                                                 np.ceil(max([v[0] for v in self.cfg.SCALES]) / feat_stride).astype(np.int),
                                                 np.ceil(max([v[1] for v in self.cfg.SCALES]) / feat_stride).astype(np.int))),
-                        'gt_roi_cache': data[0]['box_info']}]
+                        'gt_roi_cache': np.zeros((self.cfg.TEST.max_per_image, 5))}]
         self.data = [[mx.nd.array(extend_data[i][name]) for name in self.data_name] for i in xrange(len(data))]
         self.im_info = im_info
 

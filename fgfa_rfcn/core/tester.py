@@ -143,19 +143,14 @@ def prepare_data(data_list, feat_list, data_batch):
     data_batch.data[0][-1] = concat_feat
     data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
 
-def prepare_roi(_list, feat_list, data_batch):
-    concat_feat = mx.ndarray.concatenate(list(feat_list), axis=0)
-    concat_data = mx.ndarray.concatenate(list(data_list), axis=0)
-
-    data_batch.data[0][-2] = concat_data
-    data_batch.provide_data[0][-2] = ('data_cache', concat_data.shape)
-    data_batch.data[0][-1] = concat_feat
-    data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
-
+def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg):
+    print dat_batch
+    #data_batch.data[0][-1][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1] = rpn_aggregated_conv_feat
+    #data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
 
 def rpn_detect(predictor, data_batch, cfg):
     output_all = predictor.predict(data_batch)
-    return output_all[0]['agg_feats'], output_all[0]['rois']
+    return output_all[0]['aggregated_conv_feat'], output_all[0]['rois']
     #data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
 
 def rcnn_detect(predictor, data_batch, data_name, rois, scales, cfg):
@@ -290,7 +285,7 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
             # init data_lsit and feat_list for a new video
             data_list = deque(maxlen=all_frame_interval)
             feat_list = deque(maxlen=all_frame_interval)
-            gt_roi_list = deque(maxlen=all_frame_interval)
+            #gt_roi_list = deque(maxlen=all_frame_interval)
             image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
             # append cfg.TEST.KEY_FRAME_INTERVAL+1 padding images in the front (first frame)
             while len(data_list) < cfg.TEST.KEY_FRAME_INTERVAL+1:
@@ -314,9 +309,10 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
                 data_list.append(image)
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
-                warp_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
-                prepare_roi(data_batch, rpn_rois)
-                pred_result = im_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
+                rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
+                print 'rpn_rois!!', rpn_rois
+                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
+                pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
 
                 roidb_offset += 1
                 frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset
@@ -351,9 +347,9 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
                 data_list.append(image)
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
-                warp_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
-                prepare_roi(data_batch, rpn_rois)
-                pred_result = im_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
+                rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
+                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
+                pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, scales, cfg)
 
                 roidb_offset += 1
                 frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset
@@ -381,6 +377,7 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
 
     with open(det_file, 'wb') as f:
         cPickle.dump((all_boxes, frame_ids), f, protocol=cPickle.HIGHEST_PROTOCOL)
+    print 'pred_result!!!', pred_result
 
     return all_boxes, frame_ids
 

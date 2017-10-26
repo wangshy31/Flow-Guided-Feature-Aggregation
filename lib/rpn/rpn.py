@@ -29,11 +29,12 @@ def get_rpn_testbatch(roidb, cfg):
     im_array = imgs
     im_info = [np.array([roidb[i]['im_info']], dtype=np.float32) for i in range(len(roidb))]
     box_info = []
+    assert len(roidb) == 1, 'Single batch only'
     for i in range(len(roidb)):
-        tmp_info = []
+        tmp_box = {}
         for j in range(len(roidb[i]['boxes'])):
-            tmp_info.append(np.append(roidb[i]['boxes'][j], roidb[i]['gt_trackid'][j]))
-        box_info.append(np.array(tmp_info))
+            tmp_box[str(roidb[i]['gt_trackid'])] = roidb[i]['boxes']
+        box_info.append(tmp_box)
 
 
     data = [{'data': im_array[i],
