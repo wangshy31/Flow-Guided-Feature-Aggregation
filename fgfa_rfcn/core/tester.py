@@ -147,7 +147,7 @@ def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg):
     #print 'hello'
     data_batch.data[0][-1] = rpn_rois
     data_batch.provide_data[0][-1] = ('gt_roi_cache', rpn_rois.shape)
-    data_batch.data[0][-2][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1, 0:1024, :, :] = rpn_aggregated_conv_feat
+    #data_batch.data[0][-2][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1, 0:1024, :, :] = rpn_aggregated_conv_feat
     #data_batch.provide_data[0][-2] = ('feat_cache', feat_cache.shape)
     return
     #data_batch.data[0][-1][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1] = rpn_aggregated_conv_feat
