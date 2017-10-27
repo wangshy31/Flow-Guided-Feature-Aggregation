@@ -144,7 +144,10 @@ def prepare_data(data_list, feat_list, data_batch):
     data_batch.provide_data[0][-2] = ('feat_cache', concat_feat.shape)
 
 def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg):
-    print 'hello'
+    #print 'hello'
+    data_batch.data[0][-1] = rpn_rois
+    data_batch.provide_data[0][-1] = ('gt_roi_cache', rpn_rois.shape)
+    return
     #data_batch.data[0][-1][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1] = rpn_aggregated_conv_feat
     #data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
 
@@ -170,12 +173,8 @@ def rcnn_detect(predictor, data_batch, data_names, rois, scales, cfg):
         scores = output['cls_prob_reshape_output'].asnumpy()[0]
         bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
         # post processing
-        print rois.shape
-        print bbox_deltas.shape
         pred_boxes = bbox_pred(rois, bbox_deltas)
-        print pred_boxes, '1'
         pred_boxes = clip_boxes(pred_boxes, im_shape[-2:])
-        print pred_boxes, '2'
 
         # we used scaled image & roi to train, so it is necessary to transform them back
         pred_boxes = pred_boxes / scale
@@ -315,9 +314,10 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
                 rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
+                print 'before', data_batch.data
                 prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
+                print 'after', data_batch.data
                 pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, rpn_rois, scales, cfg)
-                print 'pred_result!!', pred_result
 
                 roidb_offset += 1
                 frame_ids[idx] = roidb_frame_ids[roidb_idx] + roidb_offset

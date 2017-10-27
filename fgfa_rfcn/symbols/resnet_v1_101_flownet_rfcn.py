@@ -1248,6 +1248,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         data_cache = mx.sym.Variable(name="data_cache")
         feat_cache = mx.sym.Variable(name="feat_cache")
         gt_roi_cache = mx.sym.Variable(name="gt_roi_cache")
+        data_range = cfg.TEST.KEY_FRAME_INTERVAL * 2 + 1
         num_classes = cfg.dataset.NUM_CLASSES
         num_reg_classes = (2 if cfg.CLASS_AGNOSTIC else num_classes)
         #num_anchors = cfg.network.NUM_ANCHORS
@@ -1258,14 +1259,27 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
         rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=gt_roi_cache,
+
+        rfcn_cls_single = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
+        rfcn_bbox_single = mx.sym.SliceChannel(rfcn_bbox, axis=0, num_outputs=data_range)
+        psroipooled_cls_rois_sum = 0
+        psroipooled_loc_rois_sum = 0
+        for i in range(data_range):
+            psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_single[i], rois=gt_roi_cache,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
-        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=gt_roi_cache,
+            psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox_single[i], rois=gt_roi_cache,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=8, spatial_scale=0.0625)
-        psroipooled_cls_rois_mean = mx.symbol.mean(data=psroipooled_cls_rois, axis=0, keepdims=True, name='psroipooled_cls_rois_mean')
-        psroipooled_loc_rois_mean = mx.symbol.mean(data=psroipooled_loc_rois, axis=0, keepdims=True, name='psroipooled_loc_rois_mean')
+            psroipooled_cls_rois_sum += psroipooled_cls_rois
+            psroipooled_loc_rois_sum += psroipooled_loc_rois
+        #psroipooled_cls_rois_mean = mx.symbol.mean(data=psroipooled_cls_rois, axis=0, keepdims=True, name='psroipooled_cls_rois_mean')
+        #psroipooled_loc_rois_mean = mx.symbol.mean(data=psroipooled_loc_rois, axis=0, keepdims=True, name='psroipooled_loc_rois_mean')
+        psroipooled_cls_rois_mean = psroipooled_cls_rois/data_range
+        psroipooled_loc_rois_mean = psroipooled_loc_rois_sum/data_range
+
+        #a,b,c = psroipooled_cls_rois_mean.infer_shape(feat_cache=(19,1024,30,30), gt_roi_cache=(300,5))
+        #print 'shape b', b
         cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_mean, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
