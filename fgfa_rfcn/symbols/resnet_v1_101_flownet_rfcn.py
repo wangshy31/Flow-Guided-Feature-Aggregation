@@ -1262,24 +1262,28 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         rfcn_cls_single = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
         rfcn_bbox_single = mx.sym.SliceChannel(rfcn_bbox, axis=0, num_outputs=data_range)
-        psroipooled_cls_rois_sum = 0
-        psroipooled_loc_rois_sum = 0
-        for i in range(data_range):
-            psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_single[i], rois=gt_roi_cache,
-                                                           group_size=7, pooled_size=7,
-                                                           output_dim=num_classes, spatial_scale=0.0625)
-            psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox_single[i], rois=gt_roi_cache,
-                                                           group_size=7, pooled_size=7,
-                                                           output_dim=8, spatial_scale=0.0625)
-            psroipooled_cls_rois_sum += psroipooled_cls_rois
-            psroipooled_loc_rois_sum += psroipooled_loc_rois
-        #psroipooled_cls_rois_mean = mx.symbol.mean(data=psroipooled_cls_rois, axis=0, keepdims=True, name='psroipooled_cls_rois_mean')
-        #psroipooled_loc_rois_mean = mx.symbol.mean(data=psroipooled_loc_rois, axis=0, keepdims=True, name='psroipooled_loc_rois_mean')
-        psroipooled_cls_rois_mean = psroipooled_cls_rois/data_range
-        psroipooled_loc_rois_mean = psroipooled_loc_rois_sum/data_range
+        #psroipooled_cls_rois_sum = 0
+        #psroipooled_loc_rois_sum = 0
+        #for i in range(data_range):
+            #psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_single[i], rois=gt_roi_cache,
+                                                           #group_size=7, pooled_size=7,
+                                                           #output_dim=num_classes, spatial_scale=0.0625)
+            #psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox_single[i], rois=gt_roi_cache,
+                                                           #group_size=7, pooled_size=7,
+                                                           #output_dim=8, spatial_scale=0.0625)
+            #psroipooled_cls_rois_sum += psroipooled_cls_rois
+            #psroipooled_loc_rois_sum += psroipooled_loc_rois
+        #psroipooled_cls_rois_mean = psroipooled_cls_rois/data_range
+        #psroipooled_loc_rois_mean = psroipooled_loc_rois_sum/data_range
 
         #a,b,c = psroipooled_cls_rois_mean.infer_shape(feat_cache=(19,1024,30,30), gt_roi_cache=(300,5))
         #print 'shape b', b
+        psroipooled_cls_rois_mean = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_single[cfg.TEST.KEY_FRAME_INTERVAL], rois=gt_roi_cache,
+                                                           group_size=7, pooled_size=7,
+                                                           output_dim=num_classes, spatial_scale=0.0625)
+        psroipooled_loc_rois_mean = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox_single[cfg.TEST.KEY_FRAME_INTERVAL], rois=gt_roi_cache,
+                                                           group_size=7, pooled_size=7,
+                                                           output_dim=8, spatial_scale=0.0625)
         cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_mean, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
