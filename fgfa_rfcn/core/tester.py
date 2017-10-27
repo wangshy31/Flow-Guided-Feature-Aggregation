@@ -134,6 +134,18 @@ def get_resnet_output(predictor, data_batch, data_names):
         feat = None
     return data_dict_all[0]['data'], feat.copy()
 
+def get_track_dict(data_batch):
+    track = data_batch.data[0][-1]
+    track = track[0].asnumpy()
+    shape = track.shape
+    assert shape[1] == 5
+    dic = {}
+    for i in range(shape[0]):
+        if track[i, 0]== track[i,1]==track[i, 2]==track[i, 3]==track[i,4]:
+            break
+        else:
+            dic[track[i,4]]=[track[i, 0], track[i, 1], track[i, 2], track[i, 3]]
+    return dic
 def prepare_data(data_list, feat_list, data_batch):
     concat_feat = mx.ndarray.concatenate(list(feat_list), axis=0)
     concat_data = mx.ndarray.concatenate(list(data_list), axis=0)
@@ -143,21 +155,76 @@ def prepare_data(data_list, feat_list, data_batch):
     data_batch.data[0][-2] = concat_feat
     data_batch.provide_data[0][-2] = ('feat_cache', concat_feat.shape)
 
-def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg):
-    #print 'hello'
-    data_batch.data[0][-1] = rpn_rois
-    data_batch.provide_data[0][-1] = ('gt_roi_cache', rpn_rois.shape)
+def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, gt_roi_list, gpu_id, cfg):
     data_batch.data[0][-2][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1, 0:1024, :, :] = rpn_aggregated_conv_feat
-    #data_batch.provide_data[0][-2] = ('feat_cache', feat_cache.shape)
-    return
-    #data_batch.data[0][-1][cfg.TEST.KEY_FRAME_INTERVAL:cfg.TEST.KEY_FRAME_INTERVAL+1] = rpn_aggregated_conv_feat
-    #data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
+    data_shape = data_batch.data[0][-3].shape
+    key_frame = gt_roi_list[cfg.TEST.KEY_FRAME_INTERVAL]
+    keys = key_frame.keys()
+    delta_list = []
+    for i in range(len(gt_roi_list)):
+        dic = {}
+        for key in keys:
+            if key in gt_roi_list[i].keys():
+                dic[key] = [gt_roi_list[i][key][0] - key_frame[key][0],
+                            gt_roi_list[i][key][1] - key_frame[key][1],
+                            gt_roi_list[i][key][2] - key_frame[key][2],
+                            gt_roi_list[i][key][3] - key_frame[key][3]]
+            else:
+                dic[key] = [0.0, 0.0, 0.0, 0.0]
+        delta_list.append(dic)
+    roi_rpn_np = rpn_rois.asnumpy()
+    roi_result = np.zeros((cfg.TEST.KEY_FRAME_INTERVAL*2+1, cfg.TEST.max_per_image, 5))
+
+    shape = roi_rpn_np.shape
+    for i in range(shape[0]):
+        maxid = 0
+        max_overlap = 0
+        query_box_area = (roi_rpn_np[i,3] - roi_rpn_np[i,1]+1)*(roi_rpn_np[i,4] - roi_rpn_np[i,2]+1)
+        for key in keys:
+            iw = min(key_frame[key][2], roi_rpn_np[i,3]) - max(key_frame[key][0], roi_rpn_np[i,1])+1
+            if iw>0:
+                ih = min(key_frame[key][3], roi_rpn_np[i,4]) - max(key_frame[key][1], roi_rpn_np[i,2])+1
+                if ih > 0:
+                    box_area = (key_frame[key][2] - key_frame[key][0]+1)*(key_frame[key][3] - key_frame[key][1]+1)
+                    all_area = float(query_box_area+box_area - iw*ih)
+                    if all_area>max_overlap:
+                        max_overlap=all_area
+                        maxid = key
+        for j in range(cfg.TEST.KEY_FRAME_INTERVAL*2+1):
+            roi_result[j, i, 0] = 0
+            roi_result[j, i, 1] = roi_rpn_np[i,1]+delta_list[j][maxid][0]
+            roi_result[j, i, 2] = roi_rpn_np[i,2]+delta_list[j][maxid][1]
+            roi_result[j, i, 3] = roi_rpn_np[i,3]+delta_list[j][maxid][2]
+            roi_result[j, i, 4] = roi_rpn_np[i,4]+delta_list[j][maxid][3]
+            if roi_result[j, i, 1]<0:
+                roi_result[j, i, 1] = 0
+            if roi_result[j, i, 3]<roi_result[j, i, 1]:
+                roi_result[j, i, 3] = roi_result[j, i, 1]
+            if roi_result[j, i, 2]<0:
+                roi_result[j, i, 2] = 0
+            if roi_result[j, i, 4]<roi_result[j, i, 2]:
+                roi_result[j, i, 4] = roi_result[j, i, 2]
+
+            if roi_result[j, i, 3] > data_shape[3]:
+                roi_result[j, i, 3] = data_shape[3]-1
+            if roi_result[j, i, 1] > roi_result[j, i, 3]:
+                roi_result[j, i, 1] = roi_result[j, i, 3]
+            if roi_result[j, i, 4] > data_shape[2]:
+                roi_result[j, i, 4] = data_shape[2]
+            if roi_result[j, i, 2] > roi_result[j, i, 4]:
+                roi_result[j, i, 2] = roi_result[j, i, 4]
+
+    data_batch.data[0][-1] = mx.nd.array(roi_result)
+    data_batch.provide_data[0][-1] = ('gt_roi_cache', roi_result.shape)
+        #print '('+str(roi_rpn_np[i, 0])+', '+str(roi_rpn_np[i, 1])+', '+str(roi_rpn_np[i, 2])+', '+str(roi_rpn_np[i, 3])+', '+str(roi_rpn_np[i, 4])+')'
+        #print '('+str(roi_result[0, i, 0])+', '+str(roi_result[0, i, 1])+', '+str(roi_result[0, i, 2])+', '+str(roi_result[0, i, 3])+', '+str(roi_result[0, i, 4])+')'
+        #print maxid, delta_list[0]
+
 
 def rpn_detect(predictor, data_batch, cfg):
     output_all = predictor.predict(data_batch)
     return output_all[0]['_plus17_output'], output_all[0]['rois_output']
     #data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
-
 def rcnn_detect(predictor, data_batch, data_names, rois, scales, cfg):
     output_all = predictor.predict(data_batch)
     data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
@@ -291,12 +358,14 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
             # init data_lsit and feat_list for a new video
             data_list = deque(maxlen=all_frame_interval)
             feat_list = deque(maxlen=all_frame_interval)
-            #gt_roi_list = deque(maxlen=all_frame_interval)
+            gt_roi_list = deque(maxlen=all_frame_interval)
             image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
             # append cfg.TEST.KEY_FRAME_INTERVAL+1 padding images in the front (first frame)
+            dic = get_track_dict(data_batch)
             while len(data_list) < cfg.TEST.KEY_FRAME_INTERVAL+1:
                 data_list.append(image)
                 feat_list.append(feat)
+                gt_roi_list.append(dic)
 
         #################################################
         # main part of the loop                         #
@@ -305,18 +374,22 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
             # keep appending data to the lists without doing prediction until the lists contain 2 * cfg.TEST.KEY_FRAME_INTERVAL objects
             if len(data_list) < all_frame_interval - 1:
                 image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
+                dic = get_track_dict(data_batch)
                 data_list.append(image)
                 feat_list.append(feat)
+                gt_roi_list.append(dic)
 
             else:
                 scales = [iim_info[0, 2] for iim_info in im_info]
 
                 image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
+                dic = get_track_dict(data_batch)
                 data_list.append(image)
                 feat_list.append(feat)
+                gt_roi_list.append(dic)
                 prepare_data(data_list, feat_list, data_batch)
                 rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
-                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
+                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, gt_roi_list, gpu_id, cfg)
                 pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, rpn_rois, scales, cfg)
 
                 roidb_offset += 1
@@ -349,12 +422,14 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
         elif key_frame_flag == 1:       # last frame of a video
             end_counter = 0
             image, feat = get_resnet_output(feat_predictors, data_batch, data_names)
+            dic = get_track_dict(data_batch)
             while end_counter < cfg.TEST.KEY_FRAME_INTERVAL + 1:
                 data_list.append(image)
                 feat_list.append(feat)
+                gt_roi_list.append(dic)
                 prepare_data(data_list, feat_list, data_batch)
                 rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
-                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
+                prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, gt_roi_list, gpu_id, cfg)
                 pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, rpn_rois, scales, cfg)
 
                 roidb_offset += 1

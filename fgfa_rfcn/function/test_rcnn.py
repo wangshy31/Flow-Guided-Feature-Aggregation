@@ -32,7 +32,6 @@ def get_predictor(sym, sym_instance, cfg, arg_params, aux_params, test_data, ctx
     max_data_shape = [[('data', (1, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ('data_cache', (19, 3, max([v[0] for v in cfg.SCALES]), max([v[1] for v in cfg.SCALES]))),
                        ]]
-    max_data_shape.append(('gt_box_cache', (1,100,5)))
 
     # create predictor
     predictor = Predictor(sym, data_names, label_names,
