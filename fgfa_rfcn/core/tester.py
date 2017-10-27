@@ -314,9 +314,7 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
                 feat_list.append(feat)
                 prepare_data(data_list, feat_list, data_batch)
                 rpn_aggregated_conv_feat, rpn_rois = rpn_detect(rpn_predictors, data_batch, cfg)
-                print 'before', data_batch.data
                 prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, cfg)
-                print 'after', data_batch.data
                 pred_result = rcnn_detect(rcnn_predictors, data_batch, data_names, rpn_rois, scales, cfg)
 
                 roidb_offset += 1
@@ -333,7 +331,8 @@ def pred_eval(gpu_id, feat_predictors, rpn_predictors, rcnn_predictors, test_dat
                 data_time += t1
                 net_time += t2
                 post_time += t3
-                print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
+                if int(idx)%100==0:
+                    print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
                                                                                       data_time / idx * test_data.batch_size,
                                                                                       net_time / idx * test_data.batch_size,
                                                                                       post_time / idx * test_data.batch_size)
