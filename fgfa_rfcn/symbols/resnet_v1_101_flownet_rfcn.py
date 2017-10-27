@@ -1236,7 +1236,6 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                 scales=tuple(cfg.network.ANCHOR_SCALES), ratios=tuple(cfg.network.ANCHOR_RATIOS),
                 rpn_pre_nms_top_n=cfg.TEST.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TEST.RPN_POST_NMS_TOP_N,
                 threshold=cfg.TEST.RPN_NMS_THRESH, rpn_min_size=cfg.TEST.RPN_MIN_SIZE)
-        #agg_feats = conv_feats[1]
         group = mx.sym.Group([data, aggregated_conv_feat, rois, gt_roi_cache])
         self.sym = group
         return group
