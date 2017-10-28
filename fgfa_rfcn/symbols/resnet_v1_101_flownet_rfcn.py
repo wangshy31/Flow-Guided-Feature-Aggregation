@@ -1265,7 +1265,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         roi_single = mx.sym.SliceChannel(gt_roi_cache, axis=0, num_outputs=data_range, squeeze_axis = True)
         psroipooled_cls_rois_sum = 0
         #psroipooled_loc_rois_sum = 0
-        for i in range(data_range):
+        for i in [cfg.TEST.KEY_FRAME_INTERVAL-1, cfg.TEST.KEY_FRAME_INTERVAL, cfg.TEST.KEY_FRAME_INTERVAL+1]:
             psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_single[i], rois=roi_single[i],
                                                            group_size=7, pooled_size=7,
                                                            output_dim=num_classes, spatial_scale=0.0625)
@@ -1274,7 +1274,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                            #output_dim=8, spatial_scale=0.0625)
             psroipooled_cls_rois_sum += psroipooled_cls_rois
             #psroipooled_loc_rois_sum += psroipooled_loc_rois
-        psroipooled_cls_rois_mean = psroipooled_cls_rois/data_range
+        psroipooled_cls_rois_mean = psroipooled_cls_rois/3
         #psroipooled_loc_rois_mean = psroipooled_loc_rois_sum/data_range
 
         #a,b,c = psroipooled_cls_rois_mean.infer_shape(feat_cache=(19,1024,30,30), gt_roi_cache=(300,5))

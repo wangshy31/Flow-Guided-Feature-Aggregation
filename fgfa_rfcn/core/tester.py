@@ -141,7 +141,7 @@ def get_track_dict(data_batch):
     assert shape[1] == 5
     dic = {}
     for i in range(shape[0]):
-        if track[i, 0]== track[i,1]==track[i, 2]==track[i, 3]==track[i,4]:
+        if track[i, 0]== track[i,1]==track[i, 2]==track[i, 3]==track[i,4]==0:
             break
         else:
             dic[track[i,4]]=[track[i, 0], track[i, 1], track[i, 2], track[i, 3]]
@@ -176,43 +176,58 @@ def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, gt_roi_list, gpu
     roi_result = np.zeros((cfg.TEST.KEY_FRAME_INTERVAL*2+1, cfg.TEST.max_per_image, 5))
 
     shape = roi_rpn_np.shape
-    for i in range(shape[0]):
-        maxid = 0
-        max_overlap = 0
-        query_box_area = (roi_rpn_np[i,3] - roi_rpn_np[i,1]+1)*(roi_rpn_np[i,4] - roi_rpn_np[i,2]+1)
-        for key in keys:
-            iw = min(key_frame[key][2], roi_rpn_np[i,3]) - max(key_frame[key][0], roi_rpn_np[i,1])+1
-            if iw>0:
-                ih = min(key_frame[key][3], roi_rpn_np[i,4]) - max(key_frame[key][1], roi_rpn_np[i,2])+1
-                if ih > 0:
-                    box_area = (key_frame[key][2] - key_frame[key][0]+1)*(key_frame[key][3] - key_frame[key][1]+1)
-                    all_area = float(query_box_area+box_area - iw*ih)
-                    if all_area>max_overlap:
-                        max_overlap=all_area
-                        maxid = key
-        for j in range(cfg.TEST.KEY_FRAME_INTERVAL*2+1):
-            roi_result[j, i, 0] = 0
-            roi_result[j, i, 1] = roi_rpn_np[i,1]+delta_list[j][maxid][0]
-            roi_result[j, i, 2] = roi_rpn_np[i,2]+delta_list[j][maxid][1]
-            roi_result[j, i, 3] = roi_rpn_np[i,3]+delta_list[j][maxid][2]
-            roi_result[j, i, 4] = roi_rpn_np[i,4]+delta_list[j][maxid][3]
-            if roi_result[j, i, 1]<0:
-                roi_result[j, i, 1] = 0
-            if roi_result[j, i, 3]<roi_result[j, i, 1]:
-                roi_result[j, i, 3] = roi_result[j, i, 1]
-            if roi_result[j, i, 2]<0:
-                roi_result[j, i, 2] = 0
-            if roi_result[j, i, 4]<roi_result[j, i, 2]:
-                roi_result[j, i, 4] = roi_result[j, i, 2]
+    if keys != []:
+        for i in range(shape[0]):
+            maxid = 0
+            max_overlap = 0
+            query_box_area = (roi_rpn_np[i,3] - roi_rpn_np[i,1]+1)*(roi_rpn_np[i,4] - roi_rpn_np[i,2]+1)
+            for key in keys:
+                iw = min(key_frame[key][2], roi_rpn_np[i,3]) - max(key_frame[key][0], roi_rpn_np[i,1])+1
+                if iw>0:
+                    ih = min(key_frame[key][3], roi_rpn_np[i,4]) - max(key_frame[key][1], roi_rpn_np[i,2])+1
+                    if ih > 0:
+                        box_area = (key_frame[key][2] - key_frame[key][0]+1)*(key_frame[key][3] - key_frame[key][1]+1)
+                        all_area = float(query_box_area+box_area - iw*ih)
+                        if all_area>max_overlap:
+                            max_overlap=all_area
+                            maxid = key
+            for j in range(cfg.TEST.KEY_FRAME_INTERVAL*2+1):
+                #if maxid not in delta_list[j].keys():
+                    #print j
+                    #print roi_rpn_np[i], key_frame, keys, delta_list[j].keys()
+                if maxid in delta_list[j].keys():
+                    roi_result[j, i, 0] = 0
+                    roi_result[j, i, 1] = np.round(roi_rpn_np[i,1]+delta_list[j][maxid][0])
+                    roi_result[j, i, 2] = np.round(roi_rpn_np[i,2]+delta_list[j][maxid][1])
+                    roi_result[j, i, 3] = np.round(roi_rpn_np[i,3]+delta_list[j][maxid][2])
+                    roi_result[j, i, 4] = np.round(roi_rpn_np[i,4]+delta_list[j][maxid][3])
+                else:
+                    roi_result[j, i, 0] = 0
+                    roi_result[j, i, 1] = np.round(roi_rpn_np[i,1])
+                    roi_result[j, i, 2] = np.round(roi_rpn_np[i,2])
+                    roi_result[j, i, 3] = np.round(roi_rpn_np[i,3])
+                    roi_result[j, i, 4] = np.round(roi_rpn_np[i,4])
 
-            if roi_result[j, i, 3] > data_shape[3]:
-                roi_result[j, i, 3] = data_shape[3]-1
-            if roi_result[j, i, 1] > roi_result[j, i, 3]:
-                roi_result[j, i, 1] = roi_result[j, i, 3]
-            if roi_result[j, i, 4] > data_shape[2]:
-                roi_result[j, i, 4] = data_shape[2]
-            if roi_result[j, i, 2] > roi_result[j, i, 4]:
-                roi_result[j, i, 2] = roi_result[j, i, 4]
+                if roi_result[j, i, 1]<0:
+                    roi_result[j, i, 1] = 0
+                if roi_result[j, i, 3]<roi_result[j, i, 1]:
+                    roi_result[j, i, 3] = roi_result[j, i, 1]
+                if roi_result[j, i, 2]<0:
+                    roi_result[j, i, 2] = 0
+                if roi_result[j, i, 4]<roi_result[j, i, 2]:
+                    roi_result[j, i, 4] = roi_result[j, i, 2]
+
+                if roi_result[j, i, 3] >= data_shape[3]:
+                    roi_result[j, i, 3] = data_shape[3]-1
+                if roi_result[j, i, 1] >= roi_result[j, i, 3]:
+                    roi_result[j, i, 1] = roi_result[j, i, 3]
+                if roi_result[j, i, 4] >= data_shape[2]:
+                    roi_result[j, i, 4] = data_shape[2]
+                if roi_result[j, i, 2] >= roi_result[j, i, 4]:
+                    roi_result[j, i, 2] = roi_result[j, i, 4]
+    else:
+        roi_result = np.tile(roi_rpn_np, (cfg.TEST.KEY_FRAME_INTERVAL*2+1,1,1))
+
 
     data_batch.data[0][-1] = mx.nd.array(roi_result)
     data_batch.provide_data[0][-1] = ('gt_roi_cache', roi_result.shape)
