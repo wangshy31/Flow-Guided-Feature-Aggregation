@@ -1274,7 +1274,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                            #output_dim=8, spatial_scale=0.0625)
             psroipooled_cls_rois_sum += psroipooled_cls_rois
             #psroipooled_loc_rois_sum += psroipooled_loc_rois
-        psroipooled_cls_rois_mean = psroipooled_cls_rois/data_range
+        psroipooled_cls_rois_mean = psroipooled_cls_rois_sum/data_range
         #psroipooled_loc_rois_mean = psroipooled_loc_rois_sum/data_range
 
         #a,b,c = psroipooled_cls_rois_mean.infer_shape(feat_cache=(19,1024,30,30), gt_roi_cache=(300,5))
