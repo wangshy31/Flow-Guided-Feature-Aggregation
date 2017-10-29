@@ -34,34 +34,32 @@ def get_image(roidb, config):
         im_tensor = transform(im, config.network.PIXEL_MEANS)
         processed_ims.append(im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
-        new_rec['boxes'] = clip_boxes(np.round(roi_rec['boxes'].copy() * im_scale), im_info[:2])
-        new_rec['im_info'] = im_info
 
         #angry!!!!why assign wrong boxes!!!!
-#        import xml.etree.ElementTree as ET
-        #tree = ET.parse(roi_rec['image'].replace('Data', 'Annotations').replace('JPEG', 'xml'))
-        #objs = tree.findall('object')
-        #num_objs = len(objs)
-        #boxes = np.zeros((num_objs, 4), dtype=np.uint16)
-        #gt_trackid = np.zeros((num_objs), dtype=np.int32)
-        ## Load object bounding boxes into a data frame.
-        #for ix, obj in enumerate(objs):
-            #bbox = obj.find('bndbox')
-            ## Make pixel indexes 0-based
-            #x1 = np.maximum(float(bbox.find('xmin').text), 0)
-            #y1 = np.maximum(float(bbox.find('ymin').text), 0)
-            #x2 = np.minimum(float(bbox.find('xmax').text), roi_rec['width']-1)
-            #y2 = np.minimum(float(bbox.find('ymax').text), roi_rec['height']-1)
+        import xml.etree.ElementTree as ET
+        tree = ET.parse(roi_rec['image'].replace('Data', 'Annotations').replace('JPEG', 'xml'))
+        objs = tree.findall('object')
+        num_objs = len(objs)
+        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+        gt_trackid = np.zeros((num_objs), dtype=np.int32)
+        # Load object bounding boxes into a data frame.
+        for ix, obj in enumerate(objs):
+            bbox = obj.find('bndbox')
+            # Make pixel indexes 0-based
+            x1 = np.maximum(float(bbox.find('xmin').text), 0)
+            y1 = np.maximum(float(bbox.find('ymin').text), 0)
+            x2 = np.minimum(float(bbox.find('xmax').text), roi_rec['width']-1)
+            y2 = np.minimum(float(bbox.find('ymax').text), roi_rec['height']-1)
 
-            #trackid = np.maximum(float(obj.find('trackid').text), 0)
+            trackid = np.maximum(float(obj.find('trackid').text), 0)
 
-            #boxes[ix, :] = [x1, y1, x2, y2]
-            #gt_trackid[ix] = trackid
+            boxes[ix, :] = [x1, y1, x2, y2]
+            gt_trackid[ix] = trackid
 
 
-        #new_rec['boxes'] = clip_boxes(np.round(boxes * im_scale), im_info[:2])
-        #new_rec['im_info'] = im_info
-        new_rec['track_id'] = roi_rec['gt_trackid']
+        new_rec['boxes'] = clip_boxes(np.round(boxes * im_scale), im_info[:2])
+        new_rec['im_info'] = im_info
+        new_rec['track_id'] = gt_trackid
         processed_roidb.append(new_rec)
     return processed_ims, processed_roidb
 
