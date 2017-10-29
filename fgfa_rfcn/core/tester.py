@@ -208,23 +208,23 @@ def prepare_roi(data_batch, rpn_aggregated_conv_feat, rpn_rois, gt_roi_list, gpu
                     roi_result[j, i, 3] = np.round(roi_rpn_np[i,3])
                     roi_result[j, i, 4] = np.round(roi_rpn_np[i,4])
 
-                if roi_result[j, i, 1]<0:
-                    roi_result[j, i, 1] = 0
-                if roi_result[j, i, 3]<roi_result[j, i, 1]:
-                    roi_result[j, i, 3] = roi_result[j, i, 1]
-                if roi_result[j, i, 2]<0:
-                    roi_result[j, i, 2] = 0
-                if roi_result[j, i, 4]<roi_result[j, i, 2]:
-                    roi_result[j, i, 4] = roi_result[j, i, 2]
+                #if roi_result[j, i, 1]<0:
+                    #roi_result[j, i, 1] = 0
+                #if roi_result[j, i, 3]<roi_result[j, i, 1]:
+                    #roi_result[j, i, 3] = roi_result[j, i, 1]
+                #if roi_result[j, i, 2]<0:
+                    #roi_result[j, i, 2] = 0
+                #if roi_result[j, i, 4]<roi_result[j, i, 2]:
+                    #roi_result[j, i, 4] = roi_result[j, i, 2]
 
-                if roi_result[j, i, 3] >= data_shape[3]:
-                    roi_result[j, i, 3] = data_shape[3]-1
-                if roi_result[j, i, 1] >= roi_result[j, i, 3]:
-                    roi_result[j, i, 1] = roi_result[j, i, 3]
-                if roi_result[j, i, 4] >= data_shape[2]:
-                    roi_result[j, i, 4] = data_shape[2]
-                if roi_result[j, i, 2] >= roi_result[j, i, 4]:
-                    roi_result[j, i, 2] = roi_result[j, i, 4]
+                #if roi_result[j, i, 3] >= data_shape[3]:
+                    #roi_result[j, i, 3] = data_shape[3]-1
+                #if roi_result[j, i, 1] >= roi_result[j, i, 3]:
+                    #roi_result[j, i, 1] = roi_result[j, i, 3]
+                #if roi_result[j, i, 4] >= data_shape[2]:
+                    #roi_result[j, i, 4] = data_shape[2]
+                #if roi_result[j, i, 2] >= roi_result[j, i, 4]:
+                    #roi_result[j, i, 2] = roi_result[j, i, 4]
     else:
         roi_result = np.tile(roi_rpn_np, (cfg.TEST.KEY_FRAME_INTERVAL*2+1,1,1))
 
