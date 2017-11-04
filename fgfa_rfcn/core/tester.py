@@ -305,7 +305,8 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
                 data_time += t1
                 net_time += t2
                 post_time += t3
-                print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
+                if int(idx)%100==0:
+                    print 'testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(idx, num_images,
                                                                                       data_time / idx * test_data.batch_size,
                                                                                       net_time / idx * test_data.batch_size,
                                                                                       post_time / idx * test_data.batch_size)
@@ -358,7 +359,7 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
 def run_dill_encode(payload):
     fun,args=dill.loads(payload)
     return fun(*args)
-    
+
 def apply_async(pool,fun,args):
     payload=dill.dumps((fun,args))
     return pool.apply_async(run_dill_encode,(payload,))

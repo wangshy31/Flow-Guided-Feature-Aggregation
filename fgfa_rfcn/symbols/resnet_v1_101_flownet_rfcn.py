@@ -1076,8 +1076,8 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         # shared convolutional layers
         conv_feat = self.get_resnet_v1(data)
-        embed_feat = self.get_embednet(conv_feat)
-        conv_embed = mx.sym.Concat(conv_feat, embed_feat, name="conv_embed")
+        #embed_feat = self.get_embednet(conv_feat)
+        conv_embed = mx.sym.Concat(conv_feat, conv_feat,conv_feat,  name="conv_embed")
 
         group = mx.sym.Group([conv_embed, im_info, data_cache, feat_cache])
         self.sym = group
@@ -1097,39 +1097,24 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         # make data_range copies of the center frame to pass through FlowNet
         cur_data = mx.symbol.slice_axis(data_cache, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL, end=cfg.TEST.KEY_FRAME_INTERVAL+1)
+        cur_feat = mx.symbol.slice_axis(feat_cache, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL, end=cfg.TEST.KEY_FRAME_INTERVAL+1)
         cur_data_copies = mx.sym.tile(cur_data, reps=(data_range, 1, 1, 1))
         flow_input = mx.symbol.Concat(cur_data_copies / 255.0, data_cache / 255.0, dim=1)
-        flow = self.get_flownet(flow_input)
+        delta = self.get_flownet(flow_input)
+        deltas = mx.sym.SliceChannel(delta, axis=0, num_outputs=data_range)
 
-        flow_grid = mx.sym.GridGenerator(data=flow, transform_type='warp', name='flow_grid')
-        conv_feat = mx.sym.BilinearSampler(data=feat_cache, grid=flow_grid, name='warping_feat')  # warped result
+        conv_feat = mx.symbol.slice_axis(feat_cache, axis=1, begin=0, end=1024)
+        conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
+        cur_conv_feat = mx.symbol.slice_axis(cur_feat, axis=1, begin=0, end=1024)
+        cur_conv_feats = mx.sym.SliceChannel(cur_conv_feat, axis=1, num_outputs=2)
 
-        embed_output = mx.symbol.slice_axis(conv_feat, axis=1, begin=1024, end=3072)
-        conv_feat = mx.symbol.slice_axis(conv_feat, axis=1, begin=0, end=1024)
 
-        # compute weight
-        cur_embed = mx.symbol.slice_axis(embed_output, axis=0, begin=cfg.TEST.KEY_FRAME_INTERVAL, end=cfg.TEST.KEY_FRAME_INTERVAL+1)
-        cur_embed = mx.sym.tile(cur_embed, reps=(data_range, 1, 1, 1))
-        unnormalize_weight = self.compute_weight(embed_output, cur_embed)
-
-        weights = mx.symbol.softmax(data=unnormalize_weight, axis=0)
-
-        weights = mx.sym.SliceChannel(weights, axis=0, num_outputs=data_range)
-        # tile part
-        aggregated_conv_feat = 0
-        warp_list = mx.sym.SliceChannel(conv_feat, axis=0, num_outputs=data_range)
-        for i in range(data_range):
-            tiled_weight = mx.symbol.tile(data=weights[i], reps=(1, 1024, 1, 1))
-            aggregated_conv_feat += tiled_weight * warp_list[i]
-
-        #weights = mx.symbol.tile(data=weights, reps=(1, 1024, 1, 1))
-        #aggregated_conv_feat = mx.sym.sum(weights * conv_feat, axis=0, keepdims=True)
-
-        conv_feats = mx.sym.SliceChannel(aggregated_conv_feat, axis=1, num_outputs=2)
+        #conv_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
+        #cur_conv_feats = mx.sym.SliceChannel(cur_conv_feat, axis=1, num_outputs=2)
 
         ##############################################
         # RPN
-        rpn_feat = conv_feats[0]
+        rpn_feat = cur_conv_feat
         rpn_cls_score = mx.sym.Convolution(
             data=rpn_feat, kernel=(1, 1), pad=(0, 0), num_filter=2 * num_anchors, name="rpn_cls_score")
         rpn_bbox_pred = mx.sym.Convolution(
@@ -1163,17 +1148,50 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                 threshold=cfg.TEST.RPN_NMS_THRESH, rpn_min_size=cfg.TEST.RPN_MIN_SIZE)
 
         # res5
+        #generate delta roi
+        roipooled_delta = mx.symbol.ROIPooling(name='roipooled_delta', data=deltas[0], rois=rois,
+                                               pooled_size=(7,7),
+                                               spatial_scale=0.0625)
+        for i in range(1, data_range):
+            roipooled_delta_tmp = mx.symbol.ROIPooling(name='roipooled_delta_tmp', data=deltas[i], rois=rois,
+                                               pooled_size=(7,7),
+                                               spatial_scale=0.0625)
+            roipooled_delta = mx.symbol.Concat(*[roipooled_delta, roipooled_delta_tmp], dim=0)
+
+
+        roipooled_delta_ip1 = mx.symbol.FullyConnected(data=roipooled_delta, num_hidden=32, name='roipooled_delta_ip1')
+        roipooled_delta_ip2 = mx.symbol.FullyConnected(data=roipooled_delta_ip1, num_hidden=4, name='roipooled_delta_ip2')
+
+
+
+        #generate delta rois and slice to rois_delta
+        roi_copies = mx.sym.tile(rois, reps=(data_range, 1))
+        roi_copies_batch = mx.symbol.slice_axis(roi_copies, axis=1, begin=0, end=1)
+        roi_copies_value = mx.symbol.slice_axis(roi_copies, axis=1, begin=1, end=5)
+
+        roi_delta = roi_copies_value - roipooled_delta_ip2
+        roi_delta_addbatchdim = mx.symbol.Concat(*[roi_copies_batch, roi_delta], dim=1)
+        rois_delta = mx.sym.SliceChannel(roi_delta_addbatchdim, axis=0, num_outputs=data_range)
+
+
+
         rfcn_feat = conv_feats[1]
         rfcn_cls = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
-        rfcn_bbox = mx.sym.Convolution(data=rfcn_feat, kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+        rfcn_cls_slice = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
+        rfcn_bbox = mx.sym.Convolution(data=cur_conv_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
                                        name="rfcn_bbox")
-        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls, rois=rois,
-                                                           group_size=7, pooled_size=7,
-                                                           output_dim=num_classes, spatial_scale=0.0625)
+        psroipooled_cls_rois_sum = 0
+        for i in range(data_range):
+            psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
+                                                               rois=rois_delta[i],
+                                                               group_size=7, pooled_size=7,
+                                                               output_dim=num_classes, spatial_scale=0.0625)
+            psroipooled_cls_rois_sum += psroipooled_cls_rois
+        psroipooled_cls_rois_sum = psroipooled_cls_rois_sum / data_range
         psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
                                                            group_size=7, pooled_size=7,
                                                            output_dim=8, spatial_scale=0.0625)
-        cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois, pool_type='avg',
+        cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_sum, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
         bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
