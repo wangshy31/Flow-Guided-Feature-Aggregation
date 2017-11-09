@@ -28,7 +28,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         self.units = (3, 4, 23, 3)  # use for 101
         self.filter_list = [256, 512, 1024, 2048]
 
-    def get_resnet_v1(self, data):
+    def get_resnet_v1(self, data, concat_flow_data):
         conv1 = mx.symbol.Convolution(name='conv1', data=data, num_filter=64, pad=(3, 3), kernel=(7, 7), stride=(2, 2),
                                       no_bias=True)
         bn_conv1 = mx.symbol.BatchNorm(name='bn_conv1', data=conv1, use_global_stats=self.use_global_stats,
@@ -672,7 +672,23 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         scale4b22_branch2c = bn4b22_branch2c
         res4b22 = mx.symbol.broadcast_add(name='res4b22', *[res4b21_relu, scale4b22_branch2c])
         res4b22_relu = mx.symbol.Activation(name='res4b22_relu', data=res4b22, act_type='relu')
-        res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=res4b22_relu, num_filter=2048, pad=(0, 0),
+
+
+
+        delta = self.get_flownet(concat_flow_data)
+        deltas = mx.sym.SliceChannel(delta, axis=0, num_outputs=2)
+        res4b22_relu_slice = mx.sym.SliceChannel(res4b22_relu, axis=0, num_outputs=3)
+
+        # flow warp
+        flow_grid_1 = mx.sym.GridGenerator(data=deltas[0], transform_type='warp', name='flow_grid_1')
+        flow_grid_2 = mx.sym.GridGenerator(data=deltas[1], transform_type='warp', name='flow_grid_2')
+        warp_conv_feat_1 = mx.sym.BilinearSampler(data=res4b22_relu_slice[1], grid=flow_grid_1, name='warping_feat_1')
+        warp_conv_feat_2 = mx.sym.BilinearSampler(data=res4b22_relu_slice[2], grid=flow_grid_2, name='warping_feat_2')
+        agg_feat = res4b22_relu_slice[0] + warp_conv_feat_1 + warp_conv_feat_2
+        agg_feat = agg_feat / 3.0
+        concat_res4b22_relu = mx.symbol.Concat(name='concat_res4b22_relu', *[agg_feat, res4b22_relu_slice[1], res4b22_relu_slice[2]], dim=0)
+
+        res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=concat_res4b22_relu, num_filter=2048, pad=(0, 0),
                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
         bn5a_branch1 = mx.symbol.BatchNorm(name='bn5a_branch1', data=res5a_branch1,
                                            use_global_stats=self.use_global_stats, eps=self.eps, fix_gamma=False)
@@ -738,7 +754,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         feat_conv_3x3 = mx.sym.Convolution(
             data=res5c_relu, kernel=(3, 3), pad=(6, 6), dilate=(6, 6), num_filter=1024, name="feat_conv_3x3")
         feat_conv_3x3_relu = mx.sym.Activation(data=feat_conv_3x3, act_type="relu", name="feat_conv_3x3_relu")
-        return feat_conv_3x3_relu
+        return feat_conv_3x3_relu, delta
 
     def get_embednet(self, data):
         em_conv1 = mx.symbol.Convolution(name='em_conv1', data=data, num_filter=512, pad=(0, 0),
@@ -882,25 +898,15 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         # pass through ResNet
         concat_data = mx.symbol.Concat(*[data, data_bef, data_aft], dim=0)
         concat_bef_aft_delta = mx.symbol.Concat(*[bef_delta, aft_delta], dim=0)
-        conv_feat = self.get_resnet_v1(concat_data)
-
         # pass through FlowNet
         concat_flow_data_1 = mx.symbol.Concat(data / 255.0, data_bef / 255.0, dim=1)
         concat_flow_data_2 = mx.symbol.Concat(data / 255.0, data_aft / 255.0, dim=1)
         concat_flow_data = mx.symbol.Concat(concat_flow_data_1, concat_flow_data_2, dim=0)
-        delta = self.get_flownet(concat_flow_data)
+        conv_feat, delta= self.get_resnet_v1(concat_data, concat_flow_data)
 
         deltas = mx.sym.SliceChannel(delta, axis=0, num_outputs=2)
-        conv_feat_split = mx.sym.SliceChannel(conv_feat, axis=0, num_outputs=3)
-
-        # flow warp
-        flow_grid_1 = mx.sym.GridGenerator(data=deltas[0], transform_type='warp', name='flow_grid_1')
-        flow_grid_2 = mx.sym.GridGenerator(data=deltas[1], transform_type='warp', name='flow_grid_2')
-        warp_conv_feat_1 = mx.sym.BilinearSampler(data=conv_feat_split[1], grid=flow_grid_1, name='warping_feat_1')
-        warp_conv_feat_2 = mx.sym.BilinearSampler(data=conv_feat_split[2], grid=flow_grid_2, name='warping_feat_2')
-        agg_feat = conv_feat_split[0] + warp_conv_feat_1 + warp_conv_feat_2
-        agg_feat = agg_feat / 3.0
-        conv_feats = mx.sym.SliceChannel(agg_feat, axis=1, num_outputs=2)
+        conv_feat_slice = mx.sym.SliceChannel(conv_feat, axis=0, num_outputs=3)
+        conv_feats = mx.sym.SliceChannel(conv_feat_slice[0], axis=1, num_outputs=2)
         org_feats = mx.sym.SliceChannel(conv_feat, axis=1, num_outputs=2)
 
         # RPN layers
@@ -998,7 +1004,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         delta_loss_weight = mx.symbol.slice_axis(bbox_weight, axis=1, begin=4, end=8)
         delta_loss_weight_copies = mx.sym.tile(delta_loss_weight, reps=(2, 1))
-        delta_loss_ = delta_loss_weight_copies * 100.0*  mx.sym.smooth_l1(name='delta_loss_', scalar=1.0, data=(roi_delta_pred- delta_label))
+        delta_loss_ = delta_loss_weight_copies * 10.0*  mx.sym.smooth_l1(name='delta_loss_', scalar=1.0, data=(roi_delta_pred- delta_label))
         delta_loss = mx.sym.MakeLoss(name='delta_loss', data=delta_loss_, grad_scale=1.0 / cfg.TRAIN.RPN_BATCH_SIZE)
 
         #generate delta rois and slice to rois_delta
