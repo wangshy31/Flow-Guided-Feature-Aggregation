@@ -1986,45 +1986,37 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
 
         #rfcn_feat = conv_feats[1]
-        rfcn_cls = mx.sym.Convolution(data=org_feats[1], kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
-        rfcn_bbox = mx.sym.Convolution(data=org_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4*num_reg_classes, name="rfcn_bbox")
-        #rfcn_bbox = mx.sym.Convolution(data=agg_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
-                                       #name="rfcn_bbox")
+        rfcn_cls = mx.sym.Convolution(data=agg_feats[1], kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
+        rfcn_bbox = mx.sym.Convolution(data=agg_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+                                       name="rfcn_bbox")
 
         #flow_grid = mx.sym.GridGenerator(data=delta, transform_type='warp', name='flow_grid')
         #warp_feat = mx.sym.BilinearSampler(data=rfcn_cls, grid=flow_grid, name='warping_feat')  # warped result
-        rfcn_cls_slice = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
-        rfcn_bbox_slice = mx.sym.SliceChannel(rfcn_bbox, axis=0, num_outputs=data_range)
+        #rfcn_cls_slice = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
         #warp_cls_slice = mx.sym.SliceChannel(warp_feat, axis=0, num_outputs=data_range)
-        psroipooled_cls_rois_sum = 0
-        psroipooled_loc_rois_sum = 0
-        #org_delta = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
-        for i in range(data_range):
-                psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
-                                                               rois=rois_delta[i],
+        #psroipooled_cls_rois_sum = 0
+        org_delta = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
+        #for i in range(data_range):
+        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls,
+                                                               #rois=rois_delta[i],
+                                                               #rois=org_delta,
+                                                               rois=rois,
                                                                group_size=7, pooled_size=7,
                                                                output_dim=num_classes, spatial_scale=0.0625)
-
-                psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox_slice[i],
-                                                               rois=rois_delta[i],
-                                                               group_size=7, pooled_size=7,
-                                                               output_dim=8, spatial_scale=0.0625)
                 #warp_psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='warp_psroipooled_cls_rois', data=warp_cls_slice[i],
                                                                #rois=org_delta,
                                                                #group_size=7, pooled_size=7,
                                                                #output_dim=num_classes, spatial_scale=0.0625)
-                psroipooled_cls_rois_sum += psroipooled_cls_rois
-                psroipooled_loc_rois_sum += psroipooled_loc_rois
+                #psroipooled_cls_rois_sum += psroipooled_cls_rois
                 #psroipooled_cls_rois_sum += warp_psroipooled_cls_rois
-        psroipooled_cls_rois_sum = psroipooled_cls_rois_sum / data_range
-        psroipooled_loc_rois_sum = psroipooled_loc_rois_sum / data_range
-        #psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
-                                                           #group_size=7, pooled_size=7,
-                                                           #output_dim=8, spatial_scale=0.0625)
+        psroipooled_cls_rois_sum = psroipooled_cls_rois
+        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
+                                                           group_size=7, pooled_size=7,
+                                                           output_dim=8, spatial_scale=0.0625)
         cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_sum, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
-        bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois_sum, pool_type='avg',
+        bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
 
