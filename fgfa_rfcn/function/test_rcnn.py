@@ -55,8 +55,8 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path, motion_iou_path,
     feat_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
     aggr_sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
 
-    feat_sym = feat_sym_instance.get_feat_symbol(cfg)
-    aggr_sym = aggr_sym_instance.get_aggregation_symbol(cfg)
+    feat_sym = feat_sym_instance.get_res4_feat_symbol(cfg)
+    aggr_sym = aggr_sym_instance.get_res5_aggregation_symbol(cfg)
 
     imdb = eval(dataset)(image_set, root_path, dataset_path, motion_iou_path, result_path=output_path, enable_detailed_eval=enable_detailed_eval)
     roidb = imdb.gt_roidb()
