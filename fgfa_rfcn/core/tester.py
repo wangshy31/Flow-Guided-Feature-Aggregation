@@ -150,12 +150,20 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
         # save output
         scores = output['cls_prob_reshape_output'].asnumpy()[0]
         bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
+        next_rois = output['slicechannel13_output2'].asnumpy()[:, 1:]
+        #next_rois = next_rois.reshape((300, 5))
+        #next_rois = next_rois[:, 1:5]
+        next_rois = np.tile(next_rois, (1, 2))
         # post processing
         pred_boxes = bbox_pred(rois, bbox_deltas)
         pred_boxes = clip_boxes(pred_boxes, im_shape[-2:])
+        next_rois = clip_boxes(next_rois, im_shape[-2:])
 
         # we used scaled image & roi to train, so it is necessary to transform them back
         pred_boxes = pred_boxes / scale
+        next_rois = next_rois / scale
+        #next_rois =  clip_boxes(next_rois, im_shape[-2:])
+        #next_rois = next_rois / scale
 
         scores_all.append(scores)
         pred_boxes_all.append(pred_boxes)

@@ -1263,6 +1263,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         #roi_delta = roi_copies_value - roipooled_delta_ip2
         roi_delta_addbatchdim = mx.symbol.Concat(*[roi_copies_batch, roi_delta], dim=1)
         rois_delta = mx.sym.SliceChannel(roi_delta_addbatchdim, axis=0, num_outputs=data_range)
+        next_rois = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
 
 
 
@@ -1321,7 +1322,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                    name='bbox_pred_reshape')
 
         # group output
-        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred])
+        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred, next_rois])
         self.sym = group
         return group
 
