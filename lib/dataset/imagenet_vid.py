@@ -229,6 +229,7 @@ class ImageNetVID(IMDB):
         """
         # make all these folders for results
         result_dir = os.path.join(self.result_path, 'results')
+        print 'enter here!!!!'
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
 
@@ -350,18 +351,21 @@ class ImageNetVID(IMDB):
             for detection in detections:
                 all_boxes = detection[0]
                 frame_ids = detection[1]
+                all_nextboxes = detection[2]
                 for im_ind in range(len(frame_ids)):
                     for cls_ind, cls in enumerate(self.classes):
                         if cls == '__background__':
                             continue
                         dets = all_boxes[cls_ind][im_ind]
+                        nextrois = all_nextboxes[cls_ind][im_ind]
                         if len(dets) == 0:
                             continue
                         # the imagenet expects 0-based indices
                         for k in range(dets.shape[0]):
-                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
+                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
                                     format(frame_ids[im_ind], cls_ind, dets[k, -1],
-                                           dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3]))
+                                           dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3],
+                                           nextrois[k, 0], nextrois[k, 1], nextrois[k, 2], nextrois[k, 3]))
 
     def do_python_eval(self):
         """
