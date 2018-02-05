@@ -202,7 +202,7 @@ class ImageNetVID(IMDB):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
 
-        self.write_vid_results(detections)
+        #self.write_vid_results(detections)
         info = self.do_python_eval()
         return info
 
@@ -218,7 +218,7 @@ class ImageNetVID(IMDB):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
 
-        self.write_vid_results_multiprocess(detections, gpu_id)
+        #self.write_vid_results_multiprocess(detections, gpu_id)
         return 1
 
     def evaluate_detections_multiprocess(self, detections):
@@ -233,7 +233,7 @@ class ImageNetVID(IMDB):
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
 
-        self.write_vid_results_multiprocess(detections)
+        #self.write_vid_results_multiprocess(detections)
         info = self.do_python_eval_gen()
         return info
 

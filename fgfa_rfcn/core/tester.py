@@ -151,7 +151,7 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
         # save output
         scores = output['cls_prob_reshape_output'].asnumpy()[0]
         bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
-        next_rois = output['slicechannel13_output2'].asnumpy()[:, 1:]
+        next_rois = output['slicechannel27_output9'].asnumpy()[:, 1:]
         #next_rois = next_rois.reshape((300, 5))
         #next_rois = next_rois[:, 1:5]
         next_rois = np.tile(next_rois, (1, 2))
@@ -229,8 +229,8 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
     print 'det_file=',det_file
     if os.path.exists(det_file) and not ignore_cache:
         with open(det_file, 'rb') as fid:
-            all_boxes, frame_ids = cPickle.load(fid)
-        return all_boxes, frame_ids
+            all_boxes, frame_ids, next_boxes = cPickle.load(fid)
+        return all_boxes, frame_ids, next_boxes
 
 
     assert vis or not test_data.shuffle

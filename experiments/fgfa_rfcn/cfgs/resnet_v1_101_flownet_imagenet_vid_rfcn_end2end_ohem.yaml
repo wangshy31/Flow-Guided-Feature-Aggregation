@@ -129,6 +129,7 @@ TRAIN:
   - 0.2
 TEST:
   # use rpn to generate proposal
+  # KEY_FRAME_INTERVAL: 2
   HAS_RPN: true
   # size of images for each device
   BATCH_IMAGES: 1
