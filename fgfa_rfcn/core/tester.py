@@ -140,7 +140,11 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
     data_dict_all = [dict(zip(data_names, data_batch.data[i])) for i in xrange(len(data_batch.data))]
     scores_all = []
     pred_boxes_all = []
-    next_rois_all = []
+    next_rois_0_all = []
+    next_rois_1_all = []
+    next_rois_2_all = []
+    next_rois_3_all = []
+    next_rois_4_all = []
     for output, data_dict, scale in zip(output_all, data_dict_all, scales):
         if cfg.TEST.HAS_RPN:
             rois = output['rois_output'].asnumpy()[:, 1:]
@@ -151,25 +155,42 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
         # save output
         scores = output['cls_prob_reshape_output'].asnumpy()[0]
         bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
-        next_rois = output['slicechannel13_output2'].asnumpy()[:, 1:]
-        #next_rois = next_rois.reshape((300, 5))
-        #next_rois = next_rois[:, 1:5]
-        next_rois = np.tile(next_rois, (1, 2))
+        next_rois_0 = output['slicechannel27_output9'].asnumpy()[:, 1:]
+        next_rois_1 = output['slicechannel27_output10'].asnumpy()[:, 1:]
+        next_rois_2 = output['slicechannel27_output11'].asnumpy()[:, 1:]
+        next_rois_3 = output['slicechannel27_output12'].asnumpy()[:, 1:]
+        next_rois_4 = output['slicechannel27_output13'].asnumpy()[:, 1:]
+
+        next_rois_0 = np.tile(next_rois_0, (1, 2))
+        next_rois_1 = np.tile(next_rois_1, (1, 2))
+        next_rois_2 = np.tile(next_rois_2, (1, 2))
+        next_rois_3 = np.tile(next_rois_3, (1, 2))
+        next_rois_4 = np.tile(next_rois_4, (1, 2))
         # post processing
         pred_boxes = bbox_pred(rois, bbox_deltas)
         pred_boxes = clip_boxes(pred_boxes, im_shape[-2:])
-        next_rois = clip_boxes(next_rois, im_shape[-2:])
+        next_rois_0 = clip_boxes(next_rois_0, im_shape[-2:])
+        next_rois_1 = clip_boxes(next_rois_1, im_shape[-2:])
+        next_rois_2 = clip_boxes(next_rois_2, im_shape[-2:])
+        next_rois_3 = clip_boxes(next_rois_3, im_shape[-2:])
+        next_rois_4 = clip_boxes(next_rois_4, im_shape[-2:])
 
         # we used scaled image & roi to train, so it is necessary to transform them back
         pred_boxes = pred_boxes / scale
-        next_rois = next_rois / scale
-        #next_rois =  clip_boxes(next_rois, im_shape[-2:])
-        #next_rois = next_rois / scale
+        next_rois_0 = next_rois_0 / scale
+        next_rois_1 = next_rois_1 / scale
+        next_rois_2 = next_rois_2 / scale
+        next_rois_3 = next_rois_3 / scale
+        next_rois_4 = next_rois_4 / scale
 
         scores_all.append(scores)
         pred_boxes_all.append(pred_boxes)
-        next_rois_all.append(next_rois)
-    return zip(scores_all, pred_boxes_all, data_dict_all, next_rois_all)
+        next_rois_0_all.append(next_rois_0)
+        next_rois_1_all.append(next_rois_1)
+        next_rois_2_all.append(next_rois_2)
+        next_rois_3_all.append(next_rois_3)
+        next_rois_4_all.append(next_rois_4)
+    return zip(scores_all, pred_boxes_all, data_dict_all, next_rois_0_all, next_rois_1_all, next_rois_2_all, next_rois_3_all, next_rois_4_all)
 
 
 def im_batch_detect(predictor, data_batch, data_names, scales, cfg):
@@ -250,7 +271,15 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
     #    (x1, y1, x2, y2, score)
     all_boxes = [[[] for _ in range(num_images)]
                  for _ in range(imdb.num_classes)]
-    all_nextboxes = [[[] for _ in range(num_images)]
+    all_nextboxes_0 = [[[] for _ in range(num_images)]
+                 for _ in range(imdb.num_classes)]
+    all_nextboxes_1 = [[[] for _ in range(num_images)]
+                 for _ in range(imdb.num_classes)]
+    all_nextboxes_2 = [[[] for _ in range(num_images)]
+                 for _ in range(imdb.num_classes)]
+    all_nextboxes_3 = [[[] for _ in range(num_images)]
+                 for _ in range(imdb.num_classes)]
+    all_nextboxes_4 = [[[] for _ in range(num_images)]
                  for _ in range(imdb.num_classes)]
     frame_ids = np.zeros(num_images, dtype=np.int)
 
@@ -308,7 +337,8 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
 
                 t2 = time.time() - t
                 t = time.time()
-                process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes, idx, max_per_image, vis,
+                process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes_0, all_nextboxes_1, all_nextboxes_2,
+                                    all_nextboxes_3, all_nextboxes_4, idx, max_per_image, vis,
                                     data_list[cfg.TEST.KEY_FRAME_INTERVAL].asnumpy(), scales)
 #                for mm in range(len(all_boxes)):
 #                    for nn in range(len(all_boxes[mm])):
@@ -349,7 +379,10 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
 
                 t2 = time.time() - t
                 t = time.time()
-                process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes, idx, max_per_image, vis, data_list[cfg.TEST.KEY_FRAME_INTERVAL].asnumpy(), scales)
+                #process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes, idx, max_per_image, vis, data_list[cfg.TEST.KEY_FRAME_INTERVAL].asnumpy(), scales)
+                process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes_0, all_nextboxes_1, all_nextboxes_2,
+                                    all_nextboxes_3, all_nextboxes_4, idx, max_per_image, vis,
+                                    data_list[cfg.TEST.KEY_FRAME_INTERVAL].asnumpy(), scales)
                 idx += test_data.batch_size
                 t3 = time.time() - t
                 t = time.time()
@@ -369,9 +402,9 @@ def pred_eval(gpu_id, feat_predictors, aggr_predictors, test_data, imdb, cfg, vi
                 end_counter += 1
 
     with open(det_file, 'wb') as f:
-        cPickle.dump((all_boxes, frame_ids, all_nextboxes), f, protocol=cPickle.HIGHEST_PROTOCOL)
+        cPickle.dump((all_boxes, frame_ids, all_nextboxes_0, all_nextboxes_1, all_nextboxes_2, all_nextboxes_3, all_nextboxes_4), f, protocol=cPickle.HIGHEST_PROTOCOL)
 
-    return all_boxes, frame_ids, all_nextboxes
+    return all_boxes, frame_ids, all_nextboxes_0, all_nextboxes_1, all_nextboxes_2, all_nextboxes_3, all_nextboxes_4
 
 def run_dill_encode(payload):
     fun,args=dill.loads(payload)
@@ -505,20 +538,28 @@ def prepare_data(data_list, feat_list, data_batch):
     data_batch.provide_data[0][-1] = ('feat_cache', concat_feat.shape)
 
 
-def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes, idx, max_per_image, vis, center_image, scales):
-    for delta, (scores, boxes, data_dict, next_rois) in enumerate(pred_result):
+def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_nextboxes_0, all_nextboxes_1, all_nextboxes_2, all_nextboxes_3, all_nextboxes_4, idx, max_per_image, vis, center_image, scales):
+    for delta, (scores, boxes, data_dict, next_rois_0, next_rois_1, next_rois_2, next_rois_3, next_rois_4) in enumerate(pred_result):
         for j in range(1, imdb.num_classes):
             indexes = np.where(scores[:, j] > thresh)[0]
             cls_scores = scores[indexes, j, np.newaxis]
             cls_boxes = boxes[indexes, 4:8] if cfg.CLASS_AGNOSTIC else boxes[indexes, j * 4:(j + 1) * 4]
-            cls_next_rois = next_rois[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois[indexes, j * 4:(j + 1) * 4]
+            cls_next_rois_0 = next_rois_0[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois_0[indexes, j * 4:(j + 1) * 4]
+            cls_next_rois_1 = next_rois_1[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois_1[indexes, j * 4:(j + 1) * 4]
+            cls_next_rois_2 = next_rois_2[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois_2[indexes, j * 4:(j + 1) * 4]
+            cls_next_rois_3 = next_rois_3[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois_3[indexes, j * 4:(j + 1) * 4]
+            cls_next_rois_4 = next_rois_4[indexes, 4:8] if cfg.CLASS_AGNOSTIC else next_rois_4[indexes, j * 4:(j + 1) * 4]
             cls_dets = np.hstack((cls_boxes, cls_scores))
             if cfg.TEST.SEQ_NMS:
                 all_boxes[j][idx+delta]=cls_dets
             else:
                 keep = nms(cls_dets)
                 all_boxes[j][idx + delta] = cls_dets[keep, :]
-                all_nextboxes[j][idx + delta] = cls_next_rois[keep, :]
+                all_nextboxes_0[j][idx + delta] = cls_next_rois_0[keep, :]
+                all_nextboxes_1[j][idx + delta] = cls_next_rois_1[keep, :]
+                all_nextboxes_2[j][idx + delta] = cls_next_rois_2[keep, :]
+                all_nextboxes_3[j][idx + delta] = cls_next_rois_3[keep, :]
+                all_nextboxes_4[j][idx + delta] = cls_next_rois_4[keep, :]
 
         if cfg.TEST.SEQ_NMS==False and  max_per_image > 0:
             image_scores = np.hstack([all_boxes[j][idx + delta][:, -1]
@@ -528,7 +569,11 @@ def process_pred_result(pred_result, imdb, thresh, cfg, nms, all_boxes, all_next
                 for j in range(1, imdb.num_classes):
                     keep = np.where(all_boxes[j][idx + delta][:, -1] >= image_thresh)[0]
                     all_boxes[j][idx + delta] = all_boxes[j][idx + delta][keep, :]
-                    all_nextboxes[j][idx + delta] = all_nextboxes[j][idx + delta][keep, :]
+                    all_nextboxes_0[j][idx + delta] = all_nextboxes_0[j][idx + delta][keep, :]
+                    all_nextboxes_1[j][idx + delta] = all_nextboxes_1[j][idx + delta][keep, :]
+                    all_nextboxes_2[j][idx + delta] = all_nextboxes_2[j][idx + delta][keep, :]
+                    all_nextboxes_3[j][idx + delta] = all_nextboxes_3[j][idx + delta][keep, :]
+                    all_nextboxes_4[j][idx + delta] = all_nextboxes_4[j][idx + delta][keep, :]
 
         if vis:
             boxes_this_image = [[]] + [all_boxes[j][idx + delta] for j in range(1, imdb.num_classes)]

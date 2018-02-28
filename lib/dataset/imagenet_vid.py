@@ -351,21 +351,34 @@ class ImageNetVID(IMDB):
             for detection in detections:
                 all_boxes = detection[0]
                 frame_ids = detection[1]
-                all_nextboxes = detection[2]
+                all_nextboxes_0 = detection[2]
+                all_nextboxes_1 = detection[3]
+                all_nextboxes_2 = detection[4]
+                all_nextboxes_3 = detection[5]
+                all_nextboxes_4 = detection[6]
                 for im_ind in range(len(frame_ids)):
                     for cls_ind, cls in enumerate(self.classes):
                         if cls == '__background__':
                             continue
                         dets = all_boxes[cls_ind][im_ind]
-                        nextrois = all_nextboxes[cls_ind][im_ind]
+                        nextrois_0 = all_nextboxes_0[cls_ind][im_ind]
+                        nextrois_1 = all_nextboxes_1[cls_ind][im_ind]
+                        nextrois_2 = all_nextboxes_2[cls_ind][im_ind]
+                        nextrois_3 = all_nextboxes_3[cls_ind][im_ind]
+                        nextrois_4 = all_nextboxes_4[cls_ind][im_ind]
                         if len(dets) == 0:
                             continue
                         # the imagenet expects 0-based indices
                         for k in range(dets.shape[0]):
-                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
+                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} \n'.
                                     format(frame_ids[im_ind], cls_ind, dets[k, -1],
                                            dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3],
-                                           nextrois[k, 0], nextrois[k, 1], nextrois[k, 2], nextrois[k, 3]))
+                                           nextrois_0[k, 0], nextrois_0[k, 1], nextrois_0[k, 2], nextrois_0[k, 3],
+                                           nextrois_1[k, 0], nextrois_1[k, 1], nextrois_1[k, 2], nextrois_1[k, 3],
+                                           nextrois_2[k, 0], nextrois_2[k, 1], nextrois_2[k, 2], nextrois_2[k, 3],
+                                           nextrois_3[k, 0], nextrois_3[k, 1], nextrois_3[k, 2], nextrois_3[k, 3],
+                                           nextrois_4[k, 0], nextrois_4[k, 1], nextrois_4[k, 2], nextrois_4[k, 3],
+                                           ))
 
     def do_python_eval(self):
         """
