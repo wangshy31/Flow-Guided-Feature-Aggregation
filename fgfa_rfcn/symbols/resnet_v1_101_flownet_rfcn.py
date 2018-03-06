@@ -1274,54 +1274,56 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
 
         #rfcn_feat = conv_feats[1]
-        rfcn_cls = mx.sym.Convolution(data=org_feats[1], kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
-        rfcn_bbox = mx.sym.Convolution(data=agg_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
-                                       name="rfcn_bbox")
+        #rfcn_cls = mx.sym.Convolution(data=org_feats[1], kernel=(1, 1), num_filter=7 * 7 * num_classes, name="rfcn_cls")
+        #rfcn_bbox = mx.sym.Convolution(data=agg_feats[1], kernel=(1, 1), num_filter=7 * 7 * 4 * num_reg_classes,
+        #                               name="rfcn_bbox")
 
-        #flow_grid = mx.sym.GridGenerator(data=delta, transform_type='warp', name='flow_grid')
-        #warp_feat = mx.sym.BilinearSampler(data=rfcn_cls, grid=flow_grid, name='warping_feat')  # warped result
-        rfcn_cls_slice = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
-        #warp_cls_slice = mx.sym.SliceChannel(warp_feat, axis=0, num_outputs=data_range)
-        psroipooled_cls_rois_sum = 0
-        #org_delta = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
-        for i in range(data_range):
-            if i == cfg.TEST.KEY_FRAME_INTERVAL:
-                psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
-                                                               rois=rois,
-                                                               group_size=7, pooled_size=7,
-                                                               output_dim=num_classes, spatial_scale=0.0625)
-                psroipooled_cls_rois_sum += psroipooled_cls_rois / 3.0
-            else:
-                psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
-                                                               rois=rois_delta[i],
-                                                               group_size=7, pooled_size=7,
-                                                               output_dim=num_classes, spatial_scale=0.0625)
-                psroipooled_cls_rois_sum += psroipooled_cls_rois *2.0 / 3.0 / (data_range-1)
-        #psroipooled_cls_rois_sum = psroipooled_cls_rois_sum / data_range
-        psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
-                                                           group_size=7, pooled_size=7,
-                                                           output_dim=8, spatial_scale=0.0625)
-        cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_sum, pool_type='avg',
-                                   global_pool=True,
-                                   kernel=(7, 7))
-        bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
-                                   global_pool=True,
-                                   kernel=(7, 7))
+        ##flow_grid = mx.sym.GridGenerator(data=delta, transform_type='warp', name='flow_grid')
+        ##warp_feat = mx.sym.BilinearSampler(data=rfcn_cls, grid=flow_grid, name='warping_feat')  # warped result
+        #rfcn_cls_slice = mx.sym.SliceChannel(rfcn_cls, axis=0, num_outputs=data_range)
+        ##warp_cls_slice = mx.sym.SliceChannel(warp_feat, axis=0, num_outputs=data_range)
+        #psroipooled_cls_rois_sum = 0
+        ##org_delta = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
+        #for i in range(data_range):
+        #    if i == cfg.TEST.KEY_FRAME_INTERVAL:
+        #        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
+        #                                                       rois=rois,
+        #                                                       group_size=7, pooled_size=7,
+        #                                                       output_dim=num_classes, spatial_scale=0.0625)
+        #        psroipooled_cls_rois_sum += psroipooled_cls_rois / 3.0
+        #    else:
+        #        psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
+        #                                                       rois=rois_delta[i],
+        #                                                       group_size=7, pooled_size=7,
+        #                                                       output_dim=num_classes, spatial_scale=0.0625)
+        #        psroipooled_cls_rois_sum += psroipooled_cls_rois *2.0 / 3.0 / (data_range-1)
+        ##psroipooled_cls_rois_sum = psroipooled_cls_rois_sum / data_range
+        #psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
+        #                                                   group_size=7, pooled_size=7,
+        #                                                   output_dim=8, spatial_scale=0.0625)
+        #cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_sum, pool_type='avg',
+        #                           global_pool=True,
+        #                           kernel=(7, 7))
+        #bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
+        #                           global_pool=True,
+        #                           kernel=(7, 7))
 
-        # classification
-        cls_score = mx.sym.Reshape(name='cls_score_reshape', data=cls_score, shape=(-1, num_classes))
-        cls_prob = mx.sym.SoftmaxActivation(name='cls_prob', data=cls_score)
-        # bounding box regression
-        bbox_pred = mx.sym.Reshape(name='bbox_pred_reshape', data=bbox_pred, shape=(-1, 4 * num_reg_classes))
+        ## classification
+        #cls_score = mx.sym.Reshape(name='cls_score_reshape', data=cls_score, shape=(-1, num_classes))
+        #cls_prob = mx.sym.SoftmaxActivation(name='cls_prob', data=cls_score)
+        ## bounding box regression
+        #bbox_pred = mx.sym.Reshape(name='bbox_pred_reshape', data=bbox_pred, shape=(-1, 4 * num_reg_classes))
 
-        # reshape output
-        cls_prob = mx.sym.Reshape(data=cls_prob, shape=(cfg.TEST.BATCH_IMAGES, -1, num_classes),
-                                  name='cls_prob_reshape')
-        bbox_pred = mx.sym.Reshape(data=bbox_pred, shape=(cfg.TEST.BATCH_IMAGES, -1, 4 * num_reg_classes),
-                                   name='bbox_pred_reshape')
+        ## reshape output
+        #cls_prob = mx.sym.Reshape(data=cls_prob, shape=(cfg.TEST.BATCH_IMAGES, -1, num_classes),
+        #                          name='cls_prob_reshape')
+        #bbox_pred = mx.sym.Reshape(data=bbox_pred, shape=(cfg.TEST.BATCH_IMAGES, -1, 4 * num_reg_classes),
+        #                           name='bbox_pred_reshape')
 
+        cls_prob = mx.sym.zeros(shape=(cfg.TEST.BATCH_IMAGES, 300, num_classes), name='cls_prob_reshape')
+        bbox_pred = mx.sym.zeros(shape=(cfg.TEST.BATCH_IMAGES, 300, 4 * num_reg_classes), name='bbox_pred_reshape')
         # group output
-        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred])
+        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred, rois_delta])
         self.sym = group
         return group
 
