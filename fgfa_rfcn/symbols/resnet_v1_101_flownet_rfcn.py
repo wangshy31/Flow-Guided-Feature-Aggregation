@@ -1048,14 +1048,14 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                    kernel=(7, 7))
         cls_occluded = mx.sym.Reshape(name='cls_occluded_reshape', data=cls_occluded, shape=(-1, 2))
         cls_occluded_prob = mx.sym.SoftmaxOutput(name='cls_occluded_prob', data=cls_occluded, label=occluded_label,
-                                                 grad_scale=1.0 / cfg.TRAIN.RPN_BATCH_SIZE/10.0,
+                                                 grad_scale=1.0 / cfg.TRAIN.RPN_BATCH_SIZE,
                                                  normalization='valid',
                                                  use_ignore=True, ignore_label=-1)
         cls_occluded_prob = mx.sym.Reshape(data=cls_occluded_prob, shape=(cfg.TRAIN.BATCH_IMAGES, -1, 2),
                                   name='cls_occluded_reshape')
         cls_occluded_slice = mx.sym.SliceChannel(cls_occluded_prob, axis=2, num_outputs=2)
         cls_occluded_slice = mx.sym.Reshape(name='cls_occluded_slice_reshape', data = cls_occluded_slice[1], shape=(-1,1,1,1))
-        cls_occluded_tile = mx.sym.tile(name = 'cls_occluded_tile', reps=(1,num_classes, 1,1), data = cls_occluded_slice)
+        cls_occluded_tile = mx.sym.tile(name = 'cls_occluded_tile', reps=(1,num_classes, 7,7), data = cls_occluded_slice)
 
 
 
@@ -1089,17 +1089,19 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                            pooled_size=7,
                                                            output_dim=8, spatial_scale=0.0625)
 
-        psroipooled_cls_rois_mean = psroipooled_cls_rois_0 / 3.0 + psroipooled_cls_rois_1 / 3.0+ psroipooled_cls_rois_2 / 3.0
+        psroipooled_cls_rois_mean = psroipooled_cls_rois_0 / 3.0 * cls_occluded_tile + psroipooled_cls_rois_flow / 3.0 * (1 - cls_occluded_tile) \
+            + psroipooled_cls_rois_1 / 3.0+ psroipooled_cls_rois_2 / 3.0
 
 
         cls_score = mx.sym.Pooling(name='ave_cls_scors_rois', data=psroipooled_cls_rois_mean, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
 
-        cls_score_flow = mx.sym.Pooling(name='ave_cls_scors_flow_rois', data=psroipooled_cls_rois_flow, pool_type='avg',
-                                   global_pool=True,
-                                   kernel=(7, 7))
-        cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
+        #cls_score_flow = mx.sym.Pooling(name='ave_cls_scors_flow_rois', data=psroipooled_cls_rois_flow, pool_type='avg',
+                                   #global_pool=True,
+                                   #kernel=(7, 7))
+        #cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
+        cls_score_combine = cls_score
         bbox_pred = mx.sym.Pooling(name='ave_bbox_pred_rois', data=psroipooled_loc_rois, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
@@ -1338,7 +1340,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                   name='cls_occluded_reshape')
         cls_occluded_slice = mx.sym.SliceChannel(cls_occluded_prob, axis=2, num_outputs=2)
         cls_occluded_slice = mx.sym.Reshape(name='cls_occluded_slice_reshape', data = cls_occluded_slice[1], shape=(-1,1,1,1))
-        cls_occluded_tile = mx.sym.tile(name = 'cls_occluded_tile', reps=(1,num_classes, 1,1), data = cls_occluded_slice)
+        cls_occluded_tile = mx.sym.tile(name = 'cls_occluded_tile', reps=(1,num_classes, 7,7), data = cls_occluded_slice)
 
 
         #warp_cls_slice = mx.sym.SliceChannel(warp_feat, axis=0, num_outputs=data_range)
@@ -1378,6 +1380,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                    kernel=(7, 7))
 
         # classification
+        #cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
         cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
         cls_score_combine = mx.sym.Reshape(name='cls_score_reshape', data=cls_score_combine, shape=(-1, num_classes))
         cls_prob = mx.sym.SoftmaxActivation(name='cls_prob', data=cls_score_combine)

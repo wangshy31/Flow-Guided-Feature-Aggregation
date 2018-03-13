@@ -89,6 +89,7 @@ def train_net(args, ctx, pretrained, pretrained_flow, epoch, prefix, begin_epoch
     max_data_shape.append(('gt_boxes', (config.TRAIN.BATCH_IMAGES, 100, 5)))
     max_data_shape.append(('bef_delta', (config.TRAIN.BATCH_IMAGES, 100, 4)))
     max_data_shape.append(('aft_delta', (config.TRAIN.BATCH_IMAGES, 100, 4)))
+    max_data_shape.append(('occluded', (config.TRAIN.BATCH_IMAGES, 100, 1)))
     print 'providing maximum shape', max_data_shape, max_label_shape
 
     data_shape_dict = dict(train_data.provide_data_single + train_data.provide_label_single)
