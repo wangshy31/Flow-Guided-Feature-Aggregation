@@ -50,7 +50,8 @@ dataset:
   dataset: ImageNetVID
   dataset_path: "./data/ILSVRC2015"
   #image_set: DET_train_30classes+VID_train_15frames
-  image_set: VID_pretrain_data
+  #image_set: VID_pretrain_data
+  image_set: VID_val_videos
   root_path: "./data"
   test_image_set: VID_val_videos
   proposal: rpn

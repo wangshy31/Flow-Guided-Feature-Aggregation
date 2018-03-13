@@ -1302,7 +1302,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
 
         #roi_delta = roi_copies_value - roipooled_delta_ip2
-        roi_delta_addbatchdim = mx.symbol.Concat(*[roi_copies_batch, roi_delta], dim=1)
+        roi_delta_addbatchdim = mx.symbol.Concat(*[roi_copies_batch, roi_delta], dim=1, name = 'roi_delta_addbatchdim')
         rois_delta = mx.sym.SliceChannel(roi_delta_addbatchdim, axis=0, num_outputs=data_range)
 
 
@@ -1345,11 +1345,12 @@ class resnet_v1_101_flownet_rfcn(Symbol):
 
         #warp_cls_slice = mx.sym.SliceChannel(warp_feat, axis=0, num_outputs=data_range)
         psroipooled_cls_rois_sum = 0
+        other_psroipooled_cls_rois_sum = 0
         #org_delta = rois_delta[cfg.TEST.KEY_FRAME_INTERVAL]
         for i in range(data_range):
             if i == cfg.TEST.KEY_FRAME_INTERVAL:
-                #psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
-                psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=cur_rfcn_cls,
+                psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=rfcn_cls_slice[i],
+                #psroipooled_cls_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois', data=cur_rfcn_cls,
                                                                rois=rois,
                                                                group_size=7, pooled_size=7,
                                                                output_dim=num_classes, spatial_scale=0.0625)
@@ -1360,6 +1361,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                                                group_size=7, pooled_size=7,
                                                                output_dim=num_classes, spatial_scale=0.0625)
                 psroipooled_cls_rois_sum += psroipooled_cls_rois *2.0 / 3.0 / (data_range-1)
+                other_psroipooled_cls_rois_sum += psroipooled_cls_rois *2.0 / 3.0 / (data_range-1)
 
         psroipooled_loc_rois = mx.contrib.sym.PSROIPooling(name='psroipooled_loc_rois', data=rfcn_bbox, rois=rois,
                                                            group_size=7, pooled_size=7,
@@ -1378,10 +1380,36 @@ class resnet_v1_101_flownet_rfcn(Symbol):
         cls_score_flow = mx.sym.Pooling(name='ave_cls_scors_flow_rois', data=psroipooled_cls_rois_flow, pool_type='avg',
                                    global_pool=True,
                                    kernel=(7, 7))
+        cls_score_flow = mx.sym.Reshape(name='cls_score_flow_reshape', data=cls_score_flow, shape=(-1, num_classes))
+        cls_prob_flow = mx.sym.SoftmaxActivation(name='cls_prob_flow', data=cls_score_flow)
+        cls_prob_flow = mx.sym.Reshape(data=cls_prob_flow, shape=(cfg.TEST.BATCH_IMAGES, -1, num_classes),
+                                  name='cls_prob_flow_reshape')
+
+
+        psroipooled_cls_rois_cur = mx.contrib.sym.PSROIPooling(name='psroipooled_cls_rois_cur', data=cur_rfcn_cls, rois=rois,
+                                                           group_size=7,
+                                                           pooled_size=7,
+                                                           output_dim=num_classes, spatial_scale=0.0625)
+        cls_score_cur = mx.sym.Pooling(name='ave_cls_scors_cur_rois', data=psroipooled_cls_rois_cur, pool_type='avg',
+                                   global_pool=True,
+                                   kernel=(7, 7))
+        cls_score_cur = mx.sym.Reshape(name='cls_score_cur_reshape', data=cls_score_cur, shape=(-1, num_classes))
+        cls_prob_cur = mx.sym.SoftmaxActivation(name='cls_prob_cur', data=cls_score_cur)
+        cls_prob_cur = mx.sym.Reshape(data=cls_prob_cur, shape=(cfg.TEST.BATCH_IMAGES, -1, num_classes),
+                                  name='cls_prob_cur_reshape')
+
+        cls_score_other = mx.sym.Pooling(name='ave_cls_scors_other_rois', data=other_psroipooled_cls_rois_sum, pool_type='avg',
+                                   global_pool=True,
+                                   kernel=(7, 7))
+        cls_score_other = mx.sym.Reshape(name='cls_score_other_reshape', data=cls_score_other, shape=(-1, num_classes))
+        cls_prob_other = mx.sym.SoftmaxActivation(name='cls_prob_other', data=cls_score_other)
+        cls_prob_other = mx.sym.Reshape(data=cls_prob_other, shape=(cfg.TEST.BATCH_IMAGES, -1, num_classes),
+                                  name='cls_prob_other_reshape')
+
 
         # classification
         #cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
-        cls_score_combine = cls_score*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
+        cls_score_combine = cls_score#*cls_occluded_tile + cls_score_flow*(1-cls_occluded_tile)
         cls_score_combine = mx.sym.Reshape(name='cls_score_reshape', data=cls_score_combine, shape=(-1, num_classes))
         cls_prob = mx.sym.SoftmaxActivation(name='cls_prob', data=cls_score_combine)
         # bounding box regression
@@ -1394,7 +1422,7 @@ class resnet_v1_101_flownet_rfcn(Symbol):
                                    name='bbox_pred_reshape')
 
         # group output
-        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred])
+        group = mx.sym.Group([data_cur, rois, cls_prob, bbox_pred, cls_prob_flow, cls_prob_cur, cls_prob_other, roi_delta_addbatchdim, cls_occluded_prob])
         self.sym = group
         return group
 

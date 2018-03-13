@@ -357,19 +357,23 @@ class ImageNetVID(IMDB):
             for detection in detections:
                 all_boxes = detection[0]
                 frame_ids = detection[1]
+                all_boxes_add = detection[2]
                 for im_ind in range(len(frame_ids)):
                     for cls_ind, cls in enumerate(self.classes):
                         if cls == '__background__':
                             continue
                         dets = all_boxes[cls_ind][im_ind]
+                        dets_add = all_boxes_add[cls_ind][im_ind]
                         if len(dets) == 0:
                             continue
                         # the imagenet expects 0-based indices
                         for k in range(dets.shape[0]):
-                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f}\n'.
+                            f.write('{:d} {:d} {:.4f} {:.2f} {:.2f} {:.2f} {:.2f}'.
                                     format(frame_ids[im_ind], cls_ind, dets[k, -1],
                                            dets[k, 0], dets[k, 1], dets[k, 2], dets[k, 3]))
-
+                            for mm in range(len(dets_add[k])):
+                                f.write(' {:.4f}'+format(dets_add[k, mm]))
+                            f.write('\n')
     def do_python_eval(self):
         """
         python evaluation wrapper
